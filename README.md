@@ -5,12 +5,14 @@ MyFastingApp is a fully offline, GPLv3 Android fasting tracker. It has no accoun
 ## Features
 
 - Active fasting timer with built-in plans: 13:11, 16:8, 18:6, 20:4, OMAD, 24h, and custom duration.
+- Start a fast now or backdate the start time from the Timer tab, with quick 30 min / 1 h / 2 h / 3 h backdate shortcuts and a full date-time picker.
 - One active fast at a time, editable start/end times, editable history, streaks, totals, average duration, and longest fast.
 - Evidence-based fasting phase labels shown on the main timer, with short text and phase-specific colors.
 - Local weight logging, target weight, kg/lb setting, trend graph, and simple on-device projection.
+- Light, dark, and follow-system theme selectable in Settings, with a purpose-built dark palette.
 - Week, month, and year trend views for fasting and weight.
 - Home-screen widget with idle and active states, progress ring, and start/end/open controls.
-- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%.
+- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings.
 - Local JSON backup import/export and CSV session export through Android's Storage Access Framework.
 
 ## Build

@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightUnit
@@ -31,6 +32,9 @@ class BackupCodec(
                 reminderLeadMinutes = settings.reminderLeadMinutes,
                 weightUnit = settings.weightUnit.storageValue,
                 targetWeightKg = settings.targetWeightKg,
+                milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
+                milestonePercents = settings.milestonePercents.sorted(),
+                themeMode = settings.themeMode.storageValue,
             ),
             sessions = sessions.sortedBy { it.startEpochMillis }.map { it.toBackup() },
             weights = weights.sortedBy { it.recordedEpochMillis }.map { it.toBackup() },
@@ -50,6 +54,11 @@ class BackupCodec(
             reminderLeadMinutes = envelope.settings.reminderLeadMinutes.coerceIn(0, 24 * 60),
             weightUnit = WeightUnit.fromStorage(envelope.settings.weightUnit),
             targetWeightKg = envelope.settings.targetWeightKg?.coerceIn(20.0, 500.0),
+            milestoneAlertsEnabled = envelope.settings.milestoneAlertsEnabled,
+            milestonePercents = envelope.settings.milestonePercents
+                .filter { it in UserSettings.MILESTONE_OPTIONS }
+                .toSet(),
+            themeMode = ThemeMode.fromStorage(envelope.settings.themeMode),
         )
         val sessions = envelope.sessions.map { it.validated() }
         val weights = envelope.weights.map { it.validated() }
@@ -132,6 +141,9 @@ data class SettingsBackup(
     val reminderLeadMinutes: Int = 15,
     val weightUnit: String = WeightUnit.LB.storageValue,
     val targetWeightKg: Double? = null,
+    val milestoneAlertsEnabled: Boolean = true,
+    val milestonePercents: List<Int> = UserSettings.MILESTONE_OPTIONS,
+    val themeMode: String = ThemeMode.SYSTEM.storageValue,
 )
 
 @Serializable

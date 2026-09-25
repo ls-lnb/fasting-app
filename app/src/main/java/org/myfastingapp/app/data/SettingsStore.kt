@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.myfastingapp.app.domain.FastPlans
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightUnit
 
@@ -24,6 +25,14 @@ class SettingsStore(private val context: Context) {
             reminderLeadMinutes = preferences[Keys.REMINDER_LEAD_MINUTES] ?: 15,
             weightUnit = WeightUnit.fromStorage(preferences[Keys.WEIGHT_UNIT]),
             targetWeightKg = preferences[Keys.TARGET_WEIGHT_KG],
+            milestoneAlertsEnabled = preferences[Keys.MILESTONE_ALERTS_ENABLED] ?: true,
+            milestonePercents = preferences[Keys.MILESTONE_PERCENTS]
+                ?.split(',')
+                ?.mapNotNull { value -> value.trim().toIntOrNull() }
+                ?.filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                ?.toSet()
+                ?: UserSettings.MILESTONE_OPTIONS.toSet(),
+            themeMode = ThemeMode.fromStorage(preferences[Keys.THEME_MODE]),
         )
     }
 
@@ -45,9 +54,25 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    suspend fun setMilestoneAlerts(enabled: Boolean, percents: Set<Int>) {
+        context.myFastingAppSettings.edit {
+            it[Keys.MILESTONE_ALERTS_ENABLED] = enabled
+            it[Keys.MILESTONE_PERCENTS] = percents
+                .filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                .sorted()
+                .joinToString(",")
+        }
+    }
+
     suspend fun setWeightUnit(unit: WeightUnit) {
         context.myFastingAppSettings.edit {
             it[Keys.WEIGHT_UNIT] = unit.storageValue
+        }
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.myFastingAppSettings.edit {
+            it[Keys.THEME_MODE] = mode.storageValue
         }
     }
 
@@ -68,6 +93,12 @@ class SettingsStore(private val context: Context) {
             it[Keys.REMINDERS_ENABLED] = settings.remindersEnabled
             it[Keys.REMINDER_LEAD_MINUTES] = settings.reminderLeadMinutes.coerceIn(0, 24 * 60)
             it[Keys.WEIGHT_UNIT] = settings.weightUnit.storageValue
+            it[Keys.MILESTONE_ALERTS_ENABLED] = settings.milestoneAlertsEnabled
+            it[Keys.MILESTONE_PERCENTS] = settings.milestonePercents
+                .filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                .sorted()
+                .joinToString(",")
+            it[Keys.THEME_MODE] = settings.themeMode.storageValue
             if (settings.targetWeightKg == null) {
                 it.remove(Keys.TARGET_WEIGHT_KG)
             } else {
@@ -87,5 +118,8 @@ class SettingsStore(private val context: Context) {
         val REMINDER_LEAD_MINUTES = intPreferencesKey("reminder_lead_minutes")
         val WEIGHT_UNIT = stringPreferencesKey("weight_unit")
         val TARGET_WEIGHT_KG = doublePreferencesKey("target_weight_kg")
+        val MILESTONE_ALERTS_ENABLED = booleanPreferencesKey("milestone_alerts_enabled")
+        val MILESTONE_PERCENTS = stringPreferencesKey("milestone_percents")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 }

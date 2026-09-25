@@ -1,5 +1,6 @@
 package org.myfastingapp.app.ui
 
+import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -9,10 +10,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,9 +28,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Add
@@ -45,6 +51,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -65,7 +74,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +102,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -100,7 +113,9 @@ import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhases
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.TimerMath
+import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightTrend
 import org.myfastingapp.app.domain.WeightTrendCalculator
@@ -112,6 +127,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -129,11 +145,11 @@ fun MyFastingApp(viewModel: MyFastingAppViewModel) {
         }
     }
 
-    MyFastingAppTheme {
+    MyFastingAppTheme(themeMode = uiState.settings.themeMode) {
         Scaffold(
             containerColor = Cream,
             bottomBar = {
-                NavigationBar(containerColor = Color.White.copy(alpha = 0.96f)) {
+                NavigationBar(containerColor = CardSurface.copy(alpha = 0.96f)) {
                     AppTab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = selectedTab == tab,
@@ -184,6 +200,7 @@ private fun TimerScreen(
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<FastSession?>(null) }
+    var starting by remember { mutableStateOf<FastPlan?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(uiState.activeSession?.id, lifecycleOwner) {
@@ -222,7 +239,7 @@ private fun TimerScreen(
             session = uiState.activeSession,
             selectedPlan = uiState.selectedPlan,
             now = now,
-            onStart = { viewModel.startFast(uiState.selectedPlan) },
+            onStart = { starting = uiState.selectedPlan },
             onEnd = viewModel::endFast,
         )
         TimerStatsStrip(uiState = uiState, now = now)
@@ -241,6 +258,17 @@ private fun TimerScreen(
             onSave = { start, end ->
                 viewModel.editFast(session.id, start, end)
                 editing = null
+            },
+        )
+    }
+
+    starting?.let { plan ->
+        StartFastDialog(
+            plan = plan,
+            onDismiss = { starting = null },
+            onStart = { startMillis ->
+                viewModel.startFast(plan, startMillis)
+                starting = null
             },
         )
     }
@@ -279,7 +307,7 @@ private fun TimerStatPill(label: String, value: String, modifier: Modifier = Mod
         modifier = modifier.height(56.dp),
         shape = RoundedCornerShape(18.dp),
         color = Cream.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, Color(0xFFE7DED6)),
+        border = BorderStroke(1.dp, StatPillBorder),
         shadowElevation = 0.dp,
     ) {
         Column(
@@ -405,6 +433,8 @@ private fun TimerHero(
 
 @Composable
 private fun CircularTimer(progressFraction: Float, showStartedProgress: Boolean, progressColor: Color) {
+    val trackColor = TimerTrack
+    val wineColor = Wine
     Canvas(
         modifier = Modifier
             .fillMaxWidth(0.78f)
@@ -419,7 +449,7 @@ private fun CircularTimer(progressFraction: Float, showStartedProgress: Boolean,
         val inset = strokeWidth / 2f
         val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
         drawCircle(
-            color = Color(0xFFF0ECE6),
+            color = trackColor,
             radius = (size.minDimension - strokeWidth) / 2f,
             center = center,
             style = trackStroke,
@@ -439,7 +469,7 @@ private fun CircularTimer(progressFraction: Float, showStartedProgress: Boolean,
             val extraProgress = ((progress - 1f) % 1f).takeIf { it > 0.01f } ?: 1f
             val extraInset = 4.dp.toPx()
             drawArc(
-                color = Wine,
+                color = wineColor,
                 startAngle = 90f,
                 sweepAngle = 360f * extraProgress,
                 useCenter = false,
@@ -464,7 +494,7 @@ private fun FastTimingPanel(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -543,7 +573,7 @@ private fun SelectedPlanStrip(session: FastSession?, selectedPlan: FastPlan, onC
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.82f),
+        color = CardSurface.copy(alpha = 0.82f),
         shadowElevation = 2.dp,
     ) {
         Text(
@@ -626,14 +656,14 @@ private fun CustomDurationCard(
     val hours = minutes / 60
     val minuteRemainder = minutes % 60
 
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = CardSurface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Custom", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
                     Text(TimerMath.formatMinutes(minutes), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Brand)
                 }
-                Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFFEDEBFF)) {
+                Surface(shape = RoundedCornerShape(16.dp), color = TintSurface) {
                     Text("Goal", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), color = Brand, fontWeight = FontWeight.Bold)
                 }
             }
@@ -680,7 +710,7 @@ private fun DurationPresetRow(presets: List<Int>, selectedMinutes: Int, onSelect
                 onClick = { onSelect(minutes) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(18.dp),
-                color = if (selected) Wine else Color(0xFFF4EFEC),
+                color = if (selected) Wine else ChipSurface,
             ) {
                 Text(
                     text = TimerMath.formatMinutes(minutes),
@@ -703,7 +733,7 @@ private fun DurationStepper(
     onIncrease: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(18.dp), color = Color(0xFFFAF5F1)) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(18.dp), color = SubtleSurface) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -819,7 +849,7 @@ private fun PeriodTabs(selectedPeriod: TrendPeriod, onPeriodSelected: (TrendPeri
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFE9E6E3), RoundedCornerShape(14.dp))
+            .background(BarsChartSurface, RoundedCornerShape(14.dp))
             .padding(3.dp),
     ) {
         TrendPeriod.entries.forEach { period ->
@@ -855,7 +885,7 @@ private fun RecentFastsTrendCard(
         ?.average()
         ?.toLong()
         ?: 0L
-    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = CardSurface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column {
@@ -970,10 +1000,11 @@ private fun ChartYAxis(maxLabel: String, midLabel: String, minLabel: String, hei
 
 @Composable
 private fun ChartGrid() {
+    val gridColor = GridLine
     Canvas(modifier = Modifier.fillMaxSize()) {
         repeat(3) { index ->
             val y = size.height * index / 2f
-            drawLine(Color(0xFFE9DDD7), Offset(0f, y), Offset(size.width, y), strokeWidth = 2f)
+            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 2f)
         }
     }
 }
@@ -991,7 +1022,7 @@ private fun WeightTrendCard(
     val latest = periodWeights.maxByOrNull { it.recordedEpochMillis }
     val average = periodWeights.takeIf { it.isNotEmpty() }?.map { it.weightKg }?.average()
     val trend = WeightTrendCalculator.calculate(periodWeights, targetWeightKg)
-    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = CardSurface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column {
@@ -1047,11 +1078,13 @@ private fun WeightGraph(weights: List<WeightEntry>, unit: WeightUnit, targetWeig
             height = 104.dp,
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val gridColor = GridLine
+            val coralColor = Coral
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(104.dp)
-                    .background(Color(0xFFFFF7F1), RoundedCornerShape(18.dp))
+                    .background(GraphSurface, RoundedCornerShape(18.dp))
                     .padding(16.dp),
             ) {
                 val left = 20f
@@ -1061,7 +1094,7 @@ private fun WeightGraph(weights: List<WeightEntry>, unit: WeightUnit, targetWeig
 
                 repeat(4) { index ->
                     val y = top + ((bottom - top) * index / 3f)
-                    drawLine(Color(0xFFE9DDD7), Offset(left, y), Offset(right, y), strokeWidth = 2f)
+                    drawLine(gridColor, Offset(left, y), Offset(right, y), strokeWidth = 2f)
                 }
 
                 val valueRange = (axisMax - axisMin).takeIf { it > 0.1 } ?: 1.0
@@ -1070,7 +1103,7 @@ private fun WeightGraph(weights: List<WeightEntry>, unit: WeightUnit, targetWeig
                 fun xFor(epochMillis: Long): Float = left + (((epochMillis - range.first).toDouble() / timeRange.toDouble()).toFloat() * (right - left))
 
                 if (points.isEmpty()) {
-                    drawLine(Coral, Offset(left, (top + bottom) / 2f), Offset(right, (top + bottom) / 2f), strokeWidth = 4f, cap = StrokeCap.Round)
+                    drawLine(coralColor, Offset(left, (top + bottom) / 2f), Offset(right, (top + bottom) / 2f), strokeWidth = 4f, cap = StrokeCap.Round)
                     return@Canvas
                 }
 
@@ -1087,11 +1120,11 @@ private fun WeightGraph(weights: List<WeightEntry>, unit: WeightUnit, targetWeig
                 }
 
                 offsets.zipWithNext().forEach { (start, end) ->
-                    drawLine(Coral, start, end, strokeWidth = 6f, cap = StrokeCap.Round)
+                    drawLine(coralColor, start, end, strokeWidth = 6f, cap = StrokeCap.Round)
                 }
                 offsets.forEach { point ->
                     drawCircle(Color.White, radius = 10f, center = point)
-                    drawCircle(Coral, radius = 6f, center = point)
+                    drawCircle(coralColor, radius = 6f, center = point)
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1141,7 +1174,7 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
         if (uiState.sessions.isEmpty()) {
             EmptyState("No fasts yet")
         } else {
-            Surface(shape = RoundedCornerShape(18.dp), color = Color.White, shadowElevation = 1.dp) {
+            Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1190,7 +1223,7 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
 
 @Composable
 private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete: () -> Unit) {
-    Surface(shape = RoundedCornerShape(18.dp), color = Color.White, shadowElevation = 1.dp) {
+    Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1223,6 +1256,88 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
             }
         }
     }
+}
+
+private data class BackdateOption(val label: String, val millis: Long)
+
+private val BACKDATE_OPTIONS = listOf(
+    BackdateOption("Now", 0L),
+    BackdateOption("30 min", 30L * 60_000L),
+    BackdateOption("1 h", 60L * 60_000L),
+    BackdateOption("2 h", 2L * 60L * 60_000L),
+    BackdateOption("3 h", 3L * 60L * 60_000L),
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StartFastDialog(
+    plan: FastPlan,
+    onDismiss: () -> Unit,
+    onStart: (Long) -> Unit,
+) {
+    val now = remember { System.currentTimeMillis() }
+    var startMillis by remember { mutableLongStateOf(now) }
+    val targetSeconds = plan.fastingMinutes * 60L
+    val safeStart = startMillis.coerceAtMost(now)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Start ${plan.name} fast") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Start now, or backdate if the fast already began.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Muted,
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    BACKDATE_OPTIONS.forEach { option ->
+                        val selected = abs((now - safeStart) - option.millis) <= 30_000L
+                        FilterChip(
+                            selected = selected,
+                            onClick = { startMillis = now - option.millis },
+                            label = {
+                                Text(
+                                    option.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Wine,
+                                selectedLabelColor = Color.White,
+                            ),
+                        )
+                    }
+                }
+                EditableDateTimeBlock(
+                    label = "Started fasting",
+                    epochMillis = safeStart,
+                    onEpochChange = { picked -> startMillis = picked.coerceAtMost(now) },
+                )
+                Text(
+                    "Elapsed ${TimerMath.formatDuration(now - safeStart)} - planned ending ${formatFriendlyDateTime(safeStart + targetSeconds * 1_000L)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Muted,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onStart(safeStart) }) {
+                Text("Start fast", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = DialogSurface,
+        titleContentColor = Ink,
+        textContentColor = Slate,
+        tonalElevation = 0.dp,
+    )
 }
 
 @Composable
@@ -1380,7 +1495,7 @@ private fun EditableDateTimeBlock(
     Surface(
         onClick = { pickingDateTime = true },
         shape = RoundedCornerShape(18.dp),
-        color = Color.White.copy(alpha = 0.72f),
+        color = CardSurface.copy(alpha = 0.72f),
         tonalElevation = 0.dp,
     ) {
         Row(
@@ -1450,7 +1565,7 @@ private fun DateTimeWheelSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         dragHandle = null,
-        containerColor = Color.White,
+        containerColor = CardSurface,
     ) {
         Column(
             modifier = Modifier
@@ -1520,6 +1635,7 @@ private fun WheelPicker(
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val inkColor = Ink
     AndroidView(
         modifier = modifier.height(118.dp),
         factory = { context ->
@@ -1528,7 +1644,7 @@ private fun WheelPicker(
                 wrapSelectorWheel = true
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     setSelectionDividerHeight((1.5f * context.resources.displayMetrics.density).roundToInt())
-                    setTextColor(Ink.toArgb())
+                    setTextColor(inkColor.toArgb())
                 }
             }
         },
@@ -1539,7 +1655,7 @@ private fun WheelPicker(
             picker.displayedValues = values
             picker.value = selectedIndex.coerceIn(0, values.lastIndex)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                picker.setTextColor(Ink.toArgb())
+                picker.setTextColor(inkColor.toArgb())
             }
             picker.setOnValueChangedListener { _, _, newValue -> onSelected(newValue) }
         },
@@ -1626,6 +1742,7 @@ private fun LogWeightDialog(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun SettingsScreen(
     uiState: MyFastingAppUiState,
     viewModel: MyFastingAppViewModel,
@@ -1659,10 +1776,43 @@ private fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(title = "Settings", action = null)
+        SettingsCompactCard(title = "Appearance") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    val selected = uiState.settings.themeMode == mode
+                    Button(
+                        onClick = { viewModel.setThemeMode(mode) },
+                        modifier = Modifier
+                            .weight(if (mode == ThemeMode.SYSTEM) 1.3f else 1f)
+                            .height(36.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selected) Wine else OptionSurface,
+                            contentColor = if (selected) Color.White else Slate,
+                        ),
+                    ) {
+                        Text(
+                            mode.label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            Text(
+                uiState.settings.themeMode.description,
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+            )
+        }
         SettingsCompactCard(title = "Weight") {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 WeightUnit.entries.forEach { unit ->
@@ -1675,7 +1825,7 @@ private fun SettingsScreen(
                         shape = RoundedCornerShape(18.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) Wine else Color(0xFFF1EEEE),
+                            containerColor = if (selected) Wine else OptionSurface,
                             contentColor = if (selected) Color.White else Slate,
                         ),
                     ) {
@@ -1725,7 +1875,59 @@ private fun SettingsScreen(
                 maxLines = 2,
             )
         }
-        SettingsCompactCard(title = "Reminders") {
+        SettingsCompactCard(title = "Notifications") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Progress alerts", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (uiState.settings.milestoneAlertsEnabled) {
+                            milestoneAlertSummary(uiState.settings.milestonePercents)
+                        } else {
+                            "Milestone notifications off"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = uiState.settings.milestoneAlertsEnabled,
+                    onCheckedChange = { viewModel.setMilestoneAlerts(it, uiState.settings.milestonePercents) },
+                    colors = settingsSwitchColors(),
+                )
+            }
+            if (uiState.settings.milestoneAlertsEnabled) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    UserSettings.MILESTONE_OPTIONS.forEach { percent ->
+                        val selected = percent in uiState.settings.milestonePercents
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                val updated = if (selected) {
+                                    uiState.settings.milestonePercents - percent
+                                } else {
+                                    uiState.settings.milestonePercents + percent
+                                }
+                                viewModel.setMilestoneAlerts(true, updated)
+                            },
+                            label = {
+                                Text(
+                                    "$percent%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Wine,
+                                selectedLabelColor = Color.White,
+                            ),
+                        )
+                    }
+                }
+            }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Local reminder", color = Ink, fontWeight = FontWeight.SemiBold)
@@ -1734,18 +1936,12 @@ private fun SettingsScreen(
                 Switch(
                     checked = uiState.settings.remindersEnabled,
                     onCheckedChange = { viewModel.setReminders(it, uiState.settings.reminderLeadMinutes) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Brand,
-                        uncheckedThumbColor = Muted,
-                        uncheckedTrackColor = Color(0xFFE8E2DC),
-                        uncheckedBorderColor = Color.Transparent,
-                    ),
+                    colors = settingsSwitchColors(),
                 )
             }
         }
         SettingsCompactCard(title = "Backup") {
-            Text("JSON includes fasts, weights, target, unit, and reminders.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            Text("JSON includes fasts, weights, target, unit, and app settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { exportJsonLauncher.launch("myfastingapp-backup.json") },
@@ -1825,9 +2021,23 @@ private fun SettingsScreen(
     }
 }
 
+private fun milestoneAlertSummary(percents: Set<Int>): String {
+    if (percents.isEmpty()) return "No milestones selected"
+    return "At " + percents.sorted().joinToString(", ") { "$it%" }
+}
+
+@Composable
+private fun settingsSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = Brand,
+    uncheckedThumbColor = Muted,
+    uncheckedTrackColor = SwitchTrackOff,
+    uncheckedBorderColor = Color.Transparent,
+)
+
 @Composable
 private fun SettingsCompactCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = CardSurface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
             content()
@@ -1845,37 +2055,89 @@ private fun SectionHeader(title: String, action: (@Composable () -> Unit)?) {
 
 @Composable
 private fun EmptyState(text: String) {
-    Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, modifier = Modifier.fillMaxWidth()) {
         Text(text, modifier = Modifier.padding(24.dp), textAlign = TextAlign.Center, color = Muted)
     }
 }
 
 @Composable
-private fun MyFastingAppTheme(content: @Composable () -> Unit) {
-    val colors = lightColorScheme(
-        primary = Brand,
-        onPrimary = Color.White,
-        primaryContainer = BrandTint,
-        onPrimaryContainer = Wine,
-        secondary = BrandSoft,
-        onSecondary = Color.White,
-        secondaryContainer = BrandTint,
-        onSecondaryContainer = Wine,
-        tertiary = BlueCard,
-        onTertiary = Color.White,
-        surface = Cream,
-        surfaceContainer = Color.White,
-        surfaceVariant = FieldSurface,
-        background = Cream,
-        onBackground = Ink,
-        onSurface = Ink,
-        onSurfaceVariant = Slate,
-        outline = Border,
-        outlineVariant = SubtleBorder,
-        error = Color(0xFFB3261E),
-        onError = Color.White,
-    )
-    MaterialTheme(colorScheme = colors, content = content)
+private fun MyFastingAppTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
+    val palette = if (darkTheme) DarkPalette else LightPalette
+    val colors = if (darkTheme) {
+        darkColorScheme(
+            primary = palette.brand,
+            onPrimary = Color.White,
+            primaryContainer = palette.brandTint,
+            onPrimaryContainer = Color(0xFFC6C4FF),
+            secondary = palette.brandSoft,
+            onSecondary = Color.White,
+            secondaryContainer = palette.brandTint,
+            onSecondaryContainer = Color(0xFFC6C4FF),
+            tertiary = BlueCard,
+            onTertiary = Color.White,
+            surface = palette.background,
+            surfaceContainer = palette.card,
+            surfaceVariant = palette.fieldSurface,
+            background = palette.background,
+            onBackground = palette.ink,
+            onSurface = palette.ink,
+            onSurfaceVariant = palette.slate,
+            outline = palette.border,
+            outlineVariant = palette.subtleBorder,
+            error = palette.error,
+            onError = Color(0xFF460605),
+        )
+    } else {
+        lightColorScheme(
+            primary = palette.brand,
+            onPrimary = Color.White,
+            primaryContainer = palette.brandTint,
+            onPrimaryContainer = palette.wine,
+            secondary = palette.brandSoft,
+            onSecondary = Color.White,
+            secondaryContainer = palette.brandTint,
+            onSecondaryContainer = palette.wine,
+            tertiary = BlueCard,
+            onTertiary = Color.White,
+            surface = palette.background,
+            surfaceContainer = palette.card,
+            surfaceVariant = palette.fieldSurface,
+            background = palette.background,
+            onBackground = palette.ink,
+            onSurface = palette.ink,
+            onSurfaceVariant = palette.slate,
+            outline = palette.border,
+            outlineVariant = palette.subtleBorder,
+            error = palette.error,
+            onError = Color.White,
+        )
+    }
+    // Keep system bars in step with the in-app theme. The platform ignores these
+    // setters on API 35+ (enforced edge-to-edge); on older devices they mirror
+    // the values/ and values-night/ styles regardless of the system setting.
+    val context = LocalContext.current
+    SideEffect {
+        val window = (context as? Activity)?.window
+        if (window != null) {
+            val barColor = if (darkTheme) palette.background else Color(0xFFF7FAF8)
+            @Suppress("DEPRECATION")
+            window.statusBarColor = barColor.toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = barColor.toArgb()
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
+    CompositionLocalProvider(LocalAppPalette provides palette) {
+        MaterialTheme(colorScheme = colors, content = content)
+    }
 }
 
 @Composable
@@ -1892,8 +2154,8 @@ private fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = Slate,
     focusedPlaceholderColor = Muted,
     unfocusedPlaceholderColor = Muted,
-    errorBorderColor = Color(0xFFB3261E),
-    errorLabelColor = Color(0xFFB3261E),
+    errorBorderColor = ErrorRed,
+    errorLabelColor = ErrorRed,
 )
 
 private enum class AppTab(val label: String, val icon: ImageVector) {
@@ -2157,21 +2419,127 @@ private fun Context.readText(uri: Uri): String {
         ?: error("Could not open input document.")
 }
 
-private val Cream = Color(0xFFFAF7F0)
-private val Ink = Color(0xFF26394D)
-private val Slate = Color(0xFF65707C)
-private val Muted = Color(0xFF9D969B)
-private val Brand = Color(0xFF3230B8)
-private val BrandSoft = Color(0xFF6D68F2)
-private val BrandTint = Color(0xFFE9E8FF)
-private val Coral = Brand
-private val Orange = BrandSoft
-private val Wine = Color(0xFF242184)
-private val DialogSurface = Color(0xFFFFFCF8)
-private val FieldSurface = Color(0xFFFFFBF6)
-private val Border = Color(0xFFDAD1CA)
-private val SubtleBorder = Color(0xFFECE4DC)
-private val MutedPink = Color(0xFFB5A7AE)
+/**
+ * App color palette. [LightPalette] preserves the original design exactly;
+ * [DarkPalette] is the matching dark variant (deep navy surfaces, brightened
+ * brand indigo, light text). Tokens below expose the active palette through a
+ * CompositionLocal, so call sites stay theme-agnostic.
+ */
+private data class AppPalette(
+    val background: Color,
+    val card: Color,
+    val ink: Color,
+    val slate: Color,
+    val muted: Color,
+    val brand: Color,
+    val brandSoft: Color,
+    val brandTint: Color,
+    val wine: Color,
+    val dialogSurface: Color,
+    val fieldSurface: Color,
+    val border: Color,
+    val subtleBorder: Color,
+    val mutedPink: Color,
+    val statPillBorder: Color,
+    val timerTrack: Color,
+    val tintSurface: Color,
+    val chipSurface: Color,
+    val optionSurface: Color,
+    val subtleSurface: Color,
+    val barsChartSurface: Color,
+    val graphSurface: Color,
+    val gridLine: Color,
+    val switchTrackOff: Color,
+    val error: Color,
+)
+
+private val LightPalette = AppPalette(
+    background = Color(0xFFFAF7F0),
+    card = Color.White,
+    ink = Color(0xFF26394D),
+    slate = Color(0xFF65707C),
+    muted = Color(0xFF9D969B),
+    brand = Color(0xFF3230B8),
+    brandSoft = Color(0xFF6D68F2),
+    brandTint = Color(0xFFE9E8FF),
+    wine = Color(0xFF242184),
+    dialogSurface = Color(0xFFFFFCF8),
+    fieldSurface = Color(0xFFFFFBF6),
+    border = Color(0xFFDAD1CA),
+    subtleBorder = Color(0xFFECE4DC),
+    mutedPink = Color(0xFFB5A7AE),
+    statPillBorder = Color(0xFFE7DED6),
+    timerTrack = Color(0xFFF0ECE6),
+    tintSurface = Color(0xFFEDEBFF),
+    chipSurface = Color(0xFFF4EFEC),
+    optionSurface = Color(0xFFF1EEEE),
+    subtleSurface = Color(0xFFFAF5F1),
+    barsChartSurface = Color(0xFFE9E6E3),
+    graphSurface = Color(0xFFFFF7F1),
+    gridLine = Color(0xFFE9DDD7),
+    switchTrackOff = Color(0xFFE8E2DC),
+    error = Color(0xFFB3261E),
+)
+
+private val DarkPalette = AppPalette(
+    background = Color(0xFF10141C),
+    card = Color(0xFF1A1F29),
+    ink = Color(0xFFE8ECF3),
+    slate = Color(0xFFA3ACB9),
+    muted = Color(0xFF7B8593),
+    brand = Color(0xFF6E6AF0),
+    brandSoft = Color(0xFF9A96FF),
+    brandTint = Color(0xFF242655),
+    wine = Color(0xFF4C48C9),
+    dialogSurface = Color(0xFF1A1F29),
+    fieldSurface = Color(0xFF222836),
+    border = Color(0xFF39414F),
+    subtleBorder = Color(0xFF2A313D),
+    mutedPink = Color(0xFFA79FAB),
+    statPillBorder = Color(0xFF333B47),
+    timerTrack = Color(0xFF242B37),
+    tintSurface = Color(0xFF1F2149),
+    chipSurface = Color(0xFF242A35),
+    optionSurface = Color(0xFF242A35),
+    subtleSurface = Color(0xFF1E232D),
+    barsChartSurface = Color(0xFF171C25),
+    graphSurface = Color(0xFF181D26),
+    gridLine = Color(0xFF2C333F),
+    switchTrackOff = Color(0xFF39414F),
+    error = Color(0xFFFFB4AB),
+)
+
+private val LocalAppPalette = compositionLocalOf { LightPalette }
+
+private val Cream: Color @Composable get() = LocalAppPalette.current.background
+private val CardSurface: Color @Composable get() = LocalAppPalette.current.card
+private val Ink: Color @Composable get() = LocalAppPalette.current.ink
+private val Slate: Color @Composable get() = LocalAppPalette.current.slate
+private val Muted: Color @Composable get() = LocalAppPalette.current.muted
+private val Brand: Color @Composable get() = LocalAppPalette.current.brand
+private val BrandSoft: Color @Composable get() = LocalAppPalette.current.brandSoft
+private val BrandTint: Color @Composable get() = LocalAppPalette.current.brandTint
+private val Coral: Color @Composable get() = LocalAppPalette.current.brand
+private val Orange: Color @Composable get() = LocalAppPalette.current.brandSoft
+private val Wine: Color @Composable get() = LocalAppPalette.current.wine
+private val DialogSurface: Color @Composable get() = LocalAppPalette.current.dialogSurface
+private val FieldSurface: Color @Composable get() = LocalAppPalette.current.fieldSurface
+private val Border: Color @Composable get() = LocalAppPalette.current.border
+private val SubtleBorder: Color @Composable get() = LocalAppPalette.current.subtleBorder
+private val MutedPink: Color @Composable get() = LocalAppPalette.current.mutedPink
+private val StatPillBorder: Color @Composable get() = LocalAppPalette.current.statPillBorder
+private val TimerTrack: Color @Composable get() = LocalAppPalette.current.timerTrack
+private val TintSurface: Color @Composable get() = LocalAppPalette.current.tintSurface
+private val ChipSurface: Color @Composable get() = LocalAppPalette.current.chipSurface
+private val OptionSurface: Color @Composable get() = LocalAppPalette.current.optionSurface
+private val SubtleSurface: Color @Composable get() = LocalAppPalette.current.subtleSurface
+private val BarsChartSurface: Color @Composable get() = LocalAppPalette.current.barsChartSurface
+private val GraphSurface: Color @Composable get() = LocalAppPalette.current.graphSurface
+private val GridLine: Color @Composable get() = LocalAppPalette.current.gridLine
+private val SwitchTrackOff: Color @Composable get() = LocalAppPalette.current.switchTrackOff
+private val ErrorRed: Color @Composable get() = LocalAppPalette.current.error
+
+// Accent colors are intentionally identical in both themes.
 private val PurpleCard = Color(0xFF6B5A95)
 private val CoralCard = Color(0xFFD98273)
 private val TealCard = Color(0xFF4F8E8E)
