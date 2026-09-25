@@ -18,6 +18,7 @@ import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastStats
 import org.myfastingapp.app.domain.StatsCalculator
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightTrend
@@ -153,6 +154,12 @@ class MyFastingAppViewModel(
         viewModelScope.launch {
             settingsStore.setMilestoneAlerts(enabled, percents)
             refreshReminderAndWidget()
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            settingsStore.setThemeMode(mode)
         }
     }
 

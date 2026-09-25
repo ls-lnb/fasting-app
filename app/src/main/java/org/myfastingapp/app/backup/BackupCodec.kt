@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightUnit
@@ -33,6 +34,7 @@ class BackupCodec(
                 targetWeightKg = settings.targetWeightKg,
                 milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
                 milestonePercents = settings.milestonePercents.sorted(),
+                themeMode = settings.themeMode.storageValue,
             ),
             sessions = sessions.sortedBy { it.startEpochMillis }.map { it.toBackup() },
             weights = weights.sortedBy { it.recordedEpochMillis }.map { it.toBackup() },
@@ -56,6 +58,7 @@ class BackupCodec(
             milestonePercents = envelope.settings.milestonePercents
                 .filter { it in UserSettings.MILESTONE_OPTIONS }
                 .toSet(),
+            themeMode = ThemeMode.fromStorage(envelope.settings.themeMode),
         )
         val sessions = envelope.sessions.map { it.validated() }
         val weights = envelope.weights.map { it.validated() }
@@ -140,6 +143,7 @@ data class SettingsBackup(
     val targetWeightKg: Double? = null,
     val milestoneAlertsEnabled: Boolean = true,
     val milestonePercents: List<Int> = UserSettings.MILESTONE_OPTIONS,
+    val themeMode: String = ThemeMode.SYSTEM.storageValue,
 )
 
 @Serializable

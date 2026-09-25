@@ -16,7 +16,7 @@ MyFastingApp is a GPL-3.0-only, offline-first Android fasting tracker. The packa
 
 - `app/src/main/java/org/myfastingapp/app/MyFastingAppApplication.kt`: creates notification channels and owns the app container.
 - `MyFastingAppContainer.kt`: wires Room, DataStore, repository, backup codec, reminder scheduler, notification controller, and widget updater.
-- `ui/MyFastingApp.kt`: Jetpack Compose Material 3 UI for timer, plans, trends, history, settings, dialogs, date picker, and time picker.
+- `ui/MyFastingApp.kt`: Jetpack Compose Material 3 UI for timer, plans, trends, history, settings, dialogs, date picker, and time picker, plus a theme-aware color palette (light and dark) provided through a CompositionLocal.
 - `ui/MyFastingAppViewModel.kt`: UI state, user actions, import/export launch data, notifications, widget refreshes, and validation messages.
 - `data/*`: Room entities/DAOs/database plus settings DataStore.
 - `domain/*`: timer math, stats, weight projection, built-in plans, fasting phase labels, and domain models.
@@ -54,6 +54,7 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - custom fasting minutes
 - reminder settings
 - milestone alert settings (on/off plus selected milestone percentages)
+- theme mode (follow system, dark, light)
 - weight unit
 - target weight in kg
 
@@ -63,7 +64,9 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - Fasts: built-in plans and custom duration picker.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
 - History: active and completed sessions, manual fast logging, editing, and deletion.
-- Settings: weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+
+The dark theme uses a dedicated palette (deep navy surfaces, brightened brand indigo, light text) rather than an inverted light palette. System bar colors and icon contrast follow the in-app theme; on API 35+ the platform's enforced edge-to-edge behavior takes precedence. The home-screen widget keeps its wallpaper-agnostic design in both themes.
 
 All other app-owned screens are designed to fit without vertical scrolling on the target phone viewport used for release testing.
 
@@ -87,7 +90,7 @@ The backup envelope includes:
 
 - `schemaVersion`
 - `exportedAtEpochMillis`
-- `settings` (plan, reminder, milestone alert, weight unit, and target weight fields; new fields have defaults so older schema-3 backups still import)
+- `settings` (plan, reminder, milestone alert, theme mode, weight unit, and target weight fields; new fields have defaults so older schema-3 backups still import)
 - `sessions`
 - `weights`
 
