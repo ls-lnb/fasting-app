@@ -31,6 +31,8 @@ class BackupCodec(
                 reminderLeadMinutes = settings.reminderLeadMinutes,
                 weightUnit = settings.weightUnit.storageValue,
                 targetWeightKg = settings.targetWeightKg,
+                milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
+                milestonePercents = settings.milestonePercents.sorted(),
             ),
             sessions = sessions.sortedBy { it.startEpochMillis }.map { it.toBackup() },
             weights = weights.sortedBy { it.recordedEpochMillis }.map { it.toBackup() },
@@ -50,6 +52,10 @@ class BackupCodec(
             reminderLeadMinutes = envelope.settings.reminderLeadMinutes.coerceIn(0, 24 * 60),
             weightUnit = WeightUnit.fromStorage(envelope.settings.weightUnit),
             targetWeightKg = envelope.settings.targetWeightKg?.coerceIn(20.0, 500.0),
+            milestoneAlertsEnabled = envelope.settings.milestoneAlertsEnabled,
+            milestonePercents = envelope.settings.milestonePercents
+                .filter { it in UserSettings.MILESTONE_OPTIONS }
+                .toSet(),
         )
         val sessions = envelope.sessions.map { it.validated() }
         val weights = envelope.weights.map { it.validated() }
@@ -132,6 +138,8 @@ data class SettingsBackup(
     val reminderLeadMinutes: Int = 15,
     val weightUnit: String = WeightUnit.LB.storageValue,
     val targetWeightKg: Double? = null,
+    val milestoneAlertsEnabled: Boolean = true,
+    val milestonePercents: List<Int> = UserSettings.MILESTONE_OPTIONS,
 )
 
 @Serializable

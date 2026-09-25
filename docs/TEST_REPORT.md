@@ -55,7 +55,7 @@ The widget root uses an opaque cream background with a subtle border, so text re
 - The Compose one-second timer is lifecycle-aware and runs only while an active fast is visible in a resumed activity.
 - The previous ten-minute `RTC_WAKEUP` notification polling loop was removed.
 - Background notifications and the widget use event-driven minute snapshots.
-- Six requested milestone alerts may wake the device during a fast.
+- Up to six user-selected milestone alerts may wake the device during a fast; disabled milestones are never scheduled.
 - Phase-only status updates use non-waking alarms.
 - Target reminders are only scheduled when enabled by the user.
 - No foreground service, WorkManager job, wake lock, exact alarm, or periodic widget update is used.

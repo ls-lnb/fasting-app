@@ -7,9 +7,19 @@ data class UserSettings(
     val reminderLeadMinutes: Int = 15,
     val weightUnit: WeightUnit = WeightUnit.LB,
     val targetWeightKg: Double? = null,
+    val milestoneAlertsEnabled: Boolean = true,
+    val milestonePercents: Set<Int> = MILESTONE_OPTIONS.toSet(),
 ) {
     val defaultPlan: FastPlan
         get() = FastPlans.resolve(defaultPlanId, customFastingMinutes)
+
+    val activeMilestonePercents: Set<Int>
+        get() = if (milestoneAlertsEnabled) milestonePercents else emptySet()
+
+    companion object {
+        /** Milestone percentages offered for progress notifications, in ascending order. */
+        val MILESTONE_OPTIONS: List<Int> = listOf(25, 50, 75, 90, 95, 100)
+    }
 }
 
 enum class WeightUnit(val storageValue: String, val label: String) {

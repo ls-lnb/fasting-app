@@ -115,6 +115,7 @@ internal fun planFastAlarms(
 ): List<PlannedFastAlarm> {
     val alarms = buildList {
         MILESTONES.forEach { milestone ->
+            if (milestone !in settings.activeMilestonePercents) return@forEach
             val triggerAt = session.startEpochMillis + ((session.targetSeconds * 1_000L * milestone) / 100L)
             if (triggerAt > nowEpochMillis) {
                 add(
@@ -157,5 +158,5 @@ internal fun planFastAlarms(
     return alarms.sortedBy(PlannedFastAlarm::triggerAtEpochMillis)
 }
 
-private val MILESTONES = listOf(25, 50, 75, 90, 95, 100)
+private val MILESTONES = UserSettings.MILESTONE_OPTIONS
 private val PHASE_HOUR_MARKS = listOf(4, 12, 18, 24)

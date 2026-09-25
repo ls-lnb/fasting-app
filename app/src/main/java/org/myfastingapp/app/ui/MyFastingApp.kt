@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,9 +26,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Add
@@ -45,6 +49,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -101,6 +107,7 @@ import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhases
 import org.myfastingapp.app.domain.TimerMath
+import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightTrend
 import org.myfastingapp.app.domain.WeightTrendCalculator
@@ -112,6 +119,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -184,6 +192,7 @@ private fun TimerScreen(
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<FastSession?>(null) }
+    var starting by remember { mutableStateOf<FastPlan?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(uiState.activeSession?.id, lifecycleOwner) {
@@ -222,7 +231,7 @@ private fun TimerScreen(
             session = uiState.activeSession,
             selectedPlan = uiState.selectedPlan,
             now = now,
-            onStart = { viewModel.startFast(uiState.selectedPlan) },
+            onStart = { starting = uiState.selectedPlan },
             onEnd = viewModel::endFast,
         )
         TimerStatsStrip(uiState = uiState, now = now)
@@ -241,6 +250,17 @@ private fun TimerScreen(
             onSave = { start, end ->
                 viewModel.editFast(session.id, start, end)
                 editing = null
+            },
+        )
+    }
+
+    starting?.let { plan ->
+        StartFastDialog(
+            plan = plan,
+            onDismiss = { starting = null },
+            onStart = { startMillis ->
+                viewModel.startFast(plan, startMillis)
+                starting = null
             },
         )
     }
@@ -1225,6 +1245,88 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
     }
 }
 
+private data class BackdateOption(val label: String, val millis: Long)
+
+private val BACKDATE_OPTIONS = listOf(
+    BackdateOption("Now", 0L),
+    BackdateOption("30 min", 30L * 60_000L),
+    BackdateOption("1 h", 60L * 60_000L),
+    BackdateOption("2 h", 2L * 60L * 60_000L),
+    BackdateOption("3 h", 3L * 60L * 60_000L),
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StartFastDialog(
+    plan: FastPlan,
+    onDismiss: () -> Unit,
+    onStart: (Long) -> Unit,
+) {
+    val now = remember { System.currentTimeMillis() }
+    var startMillis by remember { mutableLongStateOf(now) }
+    val targetSeconds = plan.fastingMinutes * 60L
+    val safeStart = startMillis.coerceAtMost(now)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Start ${plan.name} fast") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Start now, or backdate if the fast already began.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Muted,
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    BACKDATE_OPTIONS.forEach { option ->
+                        val selected = abs((now - safeStart) - option.millis) <= 30_000L
+                        FilterChip(
+                            selected = selected,
+                            onClick = { startMillis = now - option.millis },
+                            label = {
+                                Text(
+                                    option.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Wine,
+                                selectedLabelColor = Color.White,
+                            ),
+                        )
+                    }
+                }
+                EditableDateTimeBlock(
+                    label = "Started fasting",
+                    epochMillis = safeStart,
+                    onEpochChange = { picked -> startMillis = picked.coerceAtMost(now) },
+                )
+                Text(
+                    "Elapsed ${TimerMath.formatDuration(now - safeStart)} - planned ending ${formatFriendlyDateTime(safeStart + targetSeconds * 1_000L)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Muted,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onStart(safeStart) }) {
+                Text("Start fast", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = DialogSurface,
+        titleContentColor = Ink,
+        textContentColor = Slate,
+        tonalElevation = 0.dp,
+    )
+}
+
 @Composable
 private fun LogFastDialog(
     selectedPlan: FastPlan,
@@ -1626,6 +1728,7 @@ private fun LogWeightDialog(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun SettingsScreen(
     uiState: MyFastingAppUiState,
     viewModel: MyFastingAppViewModel,
@@ -1659,7 +1762,8 @@ private fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(title = "Settings", action = null)
@@ -1725,7 +1829,59 @@ private fun SettingsScreen(
                 maxLines = 2,
             )
         }
-        SettingsCompactCard(title = "Reminders") {
+        SettingsCompactCard(title = "Notifications") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Progress alerts", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (uiState.settings.milestoneAlertsEnabled) {
+                            milestoneAlertSummary(uiState.settings.milestonePercents)
+                        } else {
+                            "Milestone notifications off"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = uiState.settings.milestoneAlertsEnabled,
+                    onCheckedChange = { viewModel.setMilestoneAlerts(it, uiState.settings.milestonePercents) },
+                    colors = settingsSwitchColors(),
+                )
+            }
+            if (uiState.settings.milestoneAlertsEnabled) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    UserSettings.MILESTONE_OPTIONS.forEach { percent ->
+                        val selected = percent in uiState.settings.milestonePercents
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                val updated = if (selected) {
+                                    uiState.settings.milestonePercents - percent
+                                } else {
+                                    uiState.settings.milestonePercents + percent
+                                }
+                                viewModel.setMilestoneAlerts(true, updated)
+                            },
+                            label = {
+                                Text(
+                                    "$percent%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Wine,
+                                selectedLabelColor = Color.White,
+                            ),
+                        )
+                    }
+                }
+            }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Local reminder", color = Ink, fontWeight = FontWeight.SemiBold)
@@ -1734,18 +1890,12 @@ private fun SettingsScreen(
                 Switch(
                     checked = uiState.settings.remindersEnabled,
                     onCheckedChange = { viewModel.setReminders(it, uiState.settings.reminderLeadMinutes) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Brand,
-                        uncheckedThumbColor = Muted,
-                        uncheckedTrackColor = Color(0xFFE8E2DC),
-                        uncheckedBorderColor = Color.Transparent,
-                    ),
+                    colors = settingsSwitchColors(),
                 )
             }
         }
         SettingsCompactCard(title = "Backup") {
-            Text("JSON includes fasts, weights, target, unit, and reminders.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            Text("JSON includes fasts, weights, target, unit, and notification settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { exportJsonLauncher.launch("myfastingapp-backup.json") },
@@ -1824,6 +1974,20 @@ private fun SettingsScreen(
         )
     }
 }
+
+private fun milestoneAlertSummary(percents: Set<Int>): String {
+    if (percents.isEmpty()) return "No milestones selected"
+    return "At " + percents.sorted().joinToString(", ") { "$it%" }
+}
+
+@Composable
+private fun settingsSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = Brand,
+    uncheckedThumbColor = Muted,
+    uncheckedTrackColor = Color(0xFFE8E2DC),
+    uncheckedBorderColor = Color.Transparent,
+)
 
 @Composable
 private fun SettingsCompactCard(title: String, content: @Composable ColumnScope.() -> Unit) {

@@ -14,7 +14,12 @@ class BackupCodecTest {
 
     @Test
     fun jsonRoundTripPreservesSettingsAndSessions() {
-        val settings = UserSettings(remindersEnabled = true, reminderLeadMinutes = 20)
+        val settings = UserSettings(
+            remindersEnabled = true,
+            reminderLeadMinutes = 20,
+            milestoneAlertsEnabled = false,
+            milestonePercents = setOf(50, 90),
+        )
         val sessions = listOf(session(planName = "16:8"))
         val weights = listOf(weight())
 
@@ -26,6 +31,16 @@ class BackupCodecTest {
         assertEquals("16:8", decoded.sessions.first().planName)
         assertEquals(1, decoded.weights.size)
         assertEquals(82.0, decoded.weights.first().weightKg, 0.001)
+    }
+
+    @Test
+    fun legacyBackupWithoutMilestoneSettingsUsesDefaults() {
+        val decoded = codec.decode(
+            """{"schemaVersion":3,"exportedAtEpochMillis":100,"settings":{"weightUnit":"kg"}}""",
+        )
+
+        assertTrue(decoded.settings.milestoneAlertsEnabled)
+        assertEquals(UserSettings.MILESTONE_OPTIONS.toSet(), decoded.settings.milestonePercents)
     }
 
     @Test

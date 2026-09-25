@@ -26,13 +26,21 @@ class FastRepository(
         .map { rows -> rows.map { it.toDomain() } }
         .distinctUntilChanged()
 
-    suspend fun startFast(plan: FastPlan, nowEpochMillis: Long = System.currentTimeMillis()): Long {
+    suspend fun startFast(
+        plan: FastPlan,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+        startEpochMillis: Long? = null,
+    ): Long {
         check(dao.activeCount() == 0) { "A fast is already active." }
+        val start = (startEpochMillis ?: nowEpochMillis).coerceIn(1L, nowEpochMillis)
+        require(dao.overlappingCount(start, Long.MAX_VALUE) == 0) {
+            "This session overlaps another fast."
+        }
         val session = FastSessionEntity(
             planId = plan.id,
             planName = plan.name,
             targetSeconds = plan.fastingMinutes * 60L,
-            startEpochMillis = nowEpochMillis,
+            startEpochMillis = start,
             endEpochMillis = null,
             createdEpochMillis = nowEpochMillis,
             updatedEpochMillis = nowEpochMillis,

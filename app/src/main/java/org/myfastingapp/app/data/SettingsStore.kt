@@ -24,6 +24,13 @@ class SettingsStore(private val context: Context) {
             reminderLeadMinutes = preferences[Keys.REMINDER_LEAD_MINUTES] ?: 15,
             weightUnit = WeightUnit.fromStorage(preferences[Keys.WEIGHT_UNIT]),
             targetWeightKg = preferences[Keys.TARGET_WEIGHT_KG],
+            milestoneAlertsEnabled = preferences[Keys.MILESTONE_ALERTS_ENABLED] ?: true,
+            milestonePercents = preferences[Keys.MILESTONE_PERCENTS]
+                ?.split(',')
+                ?.mapNotNull { value -> value.trim().toIntOrNull() }
+                ?.filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                ?.toSet()
+                ?: UserSettings.MILESTONE_OPTIONS.toSet(),
         )
     }
 
@@ -42,6 +49,16 @@ class SettingsStore(private val context: Context) {
         context.myFastingAppSettings.edit {
             it[Keys.REMINDERS_ENABLED] = enabled
             it[Keys.REMINDER_LEAD_MINUTES] = leadMinutes.coerceIn(0, 24 * 60)
+        }
+    }
+
+    suspend fun setMilestoneAlerts(enabled: Boolean, percents: Set<Int>) {
+        context.myFastingAppSettings.edit {
+            it[Keys.MILESTONE_ALERTS_ENABLED] = enabled
+            it[Keys.MILESTONE_PERCENTS] = percents
+                .filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                .sorted()
+                .joinToString(",")
         }
     }
 
@@ -68,6 +85,11 @@ class SettingsStore(private val context: Context) {
             it[Keys.REMINDERS_ENABLED] = settings.remindersEnabled
             it[Keys.REMINDER_LEAD_MINUTES] = settings.reminderLeadMinutes.coerceIn(0, 24 * 60)
             it[Keys.WEIGHT_UNIT] = settings.weightUnit.storageValue
+            it[Keys.MILESTONE_ALERTS_ENABLED] = settings.milestoneAlertsEnabled
+            it[Keys.MILESTONE_PERCENTS] = settings.milestonePercents
+                .filter { percent -> percent in UserSettings.MILESTONE_OPTIONS }
+                .sorted()
+                .joinToString(",")
             if (settings.targetWeightKg == null) {
                 it.remove(Keys.TARGET_WEIGHT_KG)
             } else {
@@ -87,5 +109,7 @@ class SettingsStore(private val context: Context) {
         val REMINDER_LEAD_MINUTES = intPreferencesKey("reminder_lead_minutes")
         val WEIGHT_UNIT = stringPreferencesKey("weight_unit")
         val TARGET_WEIGHT_KG = doublePreferencesKey("target_weight_kg")
+        val MILESTONE_ALERTS_ENABLED = booleanPreferencesKey("milestone_alerts_enabled")
+        val MILESTONE_PERCENTS = stringPreferencesKey("milestone_percents")
     }
 }
