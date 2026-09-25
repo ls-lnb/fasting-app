@@ -71,10 +71,10 @@ class MyFastingAppViewModel(
         }
     }
 
-    fun startFast(plan: FastPlan = uiState.value.selectedPlan) {
+    fun startFast(plan: FastPlan = uiState.value.selectedPlan, startEpochMillis: Long? = null) {
         viewModelScope.launch {
             runCatching {
-                repository.startFast(plan)
+                repository.startFast(plan, startEpochMillis = startEpochMillis)
                 refreshReminderAndWidget()
             }.onFailure { showMessage(it.message ?: "Could not start fast.") }
         }
@@ -145,6 +145,13 @@ class MyFastingAppViewModel(
     fun setReminders(enabled: Boolean, leadMinutes: Int) {
         viewModelScope.launch {
             settingsStore.setReminders(enabled, leadMinutes)
+            refreshReminderAndWidget()
+        }
+    }
+
+    fun setMilestoneAlerts(enabled: Boolean, percents: Set<Int>) {
+        viewModelScope.launch {
+            settingsStore.setMilestoneAlerts(enabled, percents)
             refreshReminderAndWidget()
         }
     }

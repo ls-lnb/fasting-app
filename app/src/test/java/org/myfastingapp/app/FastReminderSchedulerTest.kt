@@ -36,6 +36,23 @@ class FastReminderSchedulerTest {
     }
 
     @Test
+    fun milestoneAlertsCanBeTurnedOff() {
+        val settings = UserSettings(milestoneAlertsEnabled = false)
+        val alarms = planFastAlarms(session(), settings, nowEpochMillis = HOUR_MILLIS)
+
+        assertTrue(alarms.none { it.kind == FastAlarmKind.MILESTONE })
+        assertEquals(listOf(4, 12, 18, 24), alarms.filter { it.kind == FastAlarmKind.PHASE_UPDATE }.map { it.phaseHour })
+    }
+
+    @Test
+    fun onlySelectedMilestonesAreScheduled() {
+        val settings = UserSettings(milestonePercents = setOf(50, 90))
+        val alarms = planFastAlarms(session(), settings, nowEpochMillis = HOUR_MILLIS)
+
+        assertEquals(listOf(50, 90), alarms.filter { it.kind == FastAlarmKind.MILESTONE }.map { it.milestonePercent })
+    }
+
+    @Test
     fun elapsedEventsAreNotRescheduled() {
         val alarms = planFastAlarms(session(), UserSettings(), nowEpochMillis = 12 * HOUR_MILLIS)
 

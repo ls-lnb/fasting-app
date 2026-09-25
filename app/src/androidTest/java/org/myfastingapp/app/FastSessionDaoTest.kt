@@ -167,6 +167,48 @@ class FastSessionDaoTest {
         throw AssertionError("Expected future start edit to be rejected.")
     }
 
+    @Test
+    fun startFastCanBackdateStartIntoPast() = runTest {
+        val plan = FastPlans.resolve(FastPlans.DEFAULT_ID, FastPlans.DEFAULT_CUSTOM_MINUTES)
+        val now = 1_000_000_000L
+        val backdated = now - 3L * 60L * 60L * 1_000L
+
+        repository.startFast(plan, now, startEpochMillis = backdated)
+
+        val active = database.fastSessionDao().getActive()!!
+        assertEquals(backdated, active.startEpochMillis)
+        assertEquals(now, active.createdEpochMillis)
+        assertEquals(now, active.updatedEpochMillis)
+        assertNull(active.endEpochMillis)
+    }
+
+    @Test
+    fun startFastBackdateClampsFutureStartToNow() = runTest {
+        val plan = FastPlans.resolve(FastPlans.DEFAULT_ID, FastPlans.DEFAULT_CUSTOM_MINUTES)
+        val now = 1_000_000_000L
+
+        repository.startFast(plan, now, startEpochMillis = now + 60_000L)
+
+        assertEquals(now, database.fastSessionDao().getActive()!!.startEpochMillis)
+    }
+
+    @Test
+    fun startFastBackdateRejectsOverlapWithCompletedSession() = runTest {
+        val dao = database.fastSessionDao()
+        val now = 1_000_000_000L
+        dao.insert(entity(start = now - 4L * 60L * 60L * 1_000L, end = now - 60_000L))
+        val plan = FastPlans.resolve(FastPlans.DEFAULT_ID, FastPlans.DEFAULT_CUSTOM_MINUTES)
+
+        try {
+            repository.startFast(plan, now, startEpochMillis = now - 2L * 60L * 60L * 1_000L)
+        } catch (expected: IllegalArgumentException) {
+            assertEquals("This session overlaps another fast.", expected.message)
+            return@runTest
+        }
+
+        throw AssertionError("Expected overlapping backdated start to be rejected.")
+    }
+
     private fun entity(start: Long = 1_000L, end: Long? = 4_000L): FastSessionEntity {
         return FastSessionEntity(
             planId = "16_8",
