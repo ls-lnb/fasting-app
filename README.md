@@ -9,6 +9,7 @@ MyFastingApp is a fully offline, GPLv3 Android fasting tracker. It has no accoun
 - One active fast at a time, editable start/end times, editable history, streaks, totals, average duration, and longest fast.
 - Evidence-based fasting phase labels shown on the main timer, with short text and phase-specific colors.
 - Local weight logging, target weight, kg/lb setting, trend graph, and simple on-device projection.
+- Light, dark, and follow-system theme selectable in Settings, with a purpose-built dark palette.
 - Week, month, and year trend views for fasting and weight.
 - Home-screen widget with idle and active states, progress ring, and start/end/open controls.
 - Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings.

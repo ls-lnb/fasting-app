@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.myfastingapp.app.backup.BackupCodec
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 
@@ -19,6 +20,7 @@ class BackupCodecTest {
             reminderLeadMinutes = 20,
             milestoneAlertsEnabled = false,
             milestonePercents = setOf(50, 90),
+            themeMode = ThemeMode.DARK,
         )
         val sessions = listOf(session(planName = "16:8"))
         val weights = listOf(weight())
@@ -41,6 +43,7 @@ class BackupCodecTest {
 
         assertTrue(decoded.settings.milestoneAlertsEnabled)
         assertEquals(UserSettings.MILESTONE_OPTIONS.toSet(), decoded.settings.milestonePercents)
+        assertEquals(ThemeMode.SYSTEM, decoded.settings.themeMode)
     }
 
     @Test
