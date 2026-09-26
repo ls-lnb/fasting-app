@@ -120,6 +120,7 @@ import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightTrend
 import org.myfastingapp.app.domain.WeightTrendCalculator
 import org.myfastingapp.app.domain.WeightUnit
+import org.myfastingapp.app.domain.customSplitLabel
 import org.myfastingapp.app.domain.kgToLb
 import org.myfastingapp.app.domain.lbToKg
 import java.time.Instant
@@ -566,9 +567,9 @@ private fun TimingBlock(
 private fun SelectedPlanStrip(session: FastSession?, selectedPlan: FastPlan, onClick: () -> Unit) {
     val label = if (session != null) {
         val target = TimerMath.formatMinutes((session.displayTargetSeconds() / 60L).toInt())
-        "${session.planName.uppercase()} FAST - $target"
+        "${session.displayPlanName.uppercase()} FAST - $target"
     } else {
-        "${selectedPlan.name.uppercase()} FAST - ${TimerMath.formatMinutes(selectedPlan.fastingMinutes)}"
+        "${selectedPlan.displayLabel.uppercase()} FAST - ${TimerMath.formatMinutes(selectedPlan.fastingMinutes)}"
     }
     Surface(
         onClick = onClick,
@@ -660,7 +661,7 @@ private fun CustomDurationCard(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Custom", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(customSplitLabel(minutes.toLong()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
                     Text(TimerMath.formatMinutes(minutes), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Brand)
                 }
                 Surface(shape = RoundedCornerShape(16.dp), color = TintSurface) {
@@ -803,7 +804,8 @@ private fun TrendsScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppVi
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(title = "Trends", action = null)
@@ -922,29 +924,35 @@ private fun RecentFastsTrendCard(
 @Composable
 private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
     val buckets = fastTrendBuckets(sessions, period)
-    val maxHours = buckets.maxOfOrNull { it.hours }?.coerceAtLeast(24.0) ?: 24.0
-    val axisMax = ceil(maxHours / 6.0).coerceAtLeast(4.0) * 6.0
+    val maxHours = buckets.maxOfOrNull { it.hours } ?: 0.0
+    // 4h gridline steps keep small differences between fasts visible; widen to
+    // 8h steps only when fasts exceed a day so labels stay readable.
+    val step = if (maxHours <= 24.0) 4.0 else 8.0
+    val axisMax = (ceil(maxHours / step) * step).coerceAtLeast(step * 2.0)
+    val stepCount = (axisMax / step).toInt()
+    val yLabels = (stepCount downTo 0).map { "${(it * step).roundToInt()}h" }
+    val plotHeight = 100.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(104.dp),
+            .height(126.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ChartYAxis(maxLabel = "${axisMax.roundToInt()}h", midLabel = "${(axisMax / 2.0).roundToInt()}h", minLabel = "0h", height = 72.dp)
+        LabeledYAxis(labels = yLabels, height = plotHeight)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(72.dp),
+                    .height(plotHeight),
             ) {
-                ChartGrid()
+                ChartGrid(lineCount = stepCount + 1)
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(if (buckets.size > 8) 4.dp else 8.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     buckets.forEach { bucket ->
-                        val barHeight = if (bucket.hours <= 0.0) 4.dp else ((bucket.hours / axisMax) * 66.0).coerceAtLeast(10.0).toFloat().dp
+                        val barHeight = if (bucket.hours <= 0.0) 4.dp else ((bucket.hours / axisMax) * 94.0).coerceAtLeast(10.0).toFloat().dp
                         Box(
                             modifier = Modifier.weight(1f),
                             contentAlignment = Alignment.BottomCenter,
@@ -984,6 +992,21 @@ private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
 }
 
 @Composable
+private fun LabeledYAxis(labels: List<String>, height: Dp) {
+    Column(
+        modifier = Modifier
+            .width(46.dp)
+            .height(height),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.End,
+    ) {
+        labels.forEach { label ->
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Muted, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun ChartYAxis(maxLabel: String, midLabel: String, minLabel: String, height: Dp = 118.dp) {
     Column(
         modifier = Modifier
@@ -999,11 +1022,12 @@ private fun ChartYAxis(maxLabel: String, midLabel: String, minLabel: String, hei
 }
 
 @Composable
-private fun ChartGrid() {
+private fun ChartGrid(lineCount: Int) {
     val gridColor = GridLine
     Canvas(modifier = Modifier.fillMaxSize()) {
-        repeat(3) { index ->
-            val y = size.height * index / 2f
+        val divisions = (lineCount - 1).coerceAtLeast(1)
+        repeat(lineCount.coerceAtLeast(1)) { index ->
+            val y = size.height * index / divisions
             drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 2f)
         }
     }
@@ -1223,6 +1247,12 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
 
 @Composable
 private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val durationMillis = session.durationMillis(session.endEpochMillis ?: System.currentTimeMillis())
+    val durationColor = when {
+        durationMillis >= 16L * 60L * 60L * 1_000L -> HistoryGreen
+        durationMillis >= 10L * 60L * 60L * 1_000L -> HistoryYellow
+        else -> HistoryRed
+    }
     Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
         Row(
             modifier = Modifier
@@ -1233,7 +1263,7 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(session.planName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
+                Text(session.displayPlanName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
                 Text(
                     "${formatFriendlyDateTime(session.startEpochMillis)} -> ${session.endEpochMillis?.let(::formatFriendlyDateTime) ?: "Now"}",
                     style = MaterialTheme.typography.bodySmall,
@@ -1242,8 +1272,8 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
                 )
             }
             Text(
-                if (session.isActive) "Active" else TimerMath.formatDuration(session.durationMillis(session.endEpochMillis ?: System.currentTimeMillis())),
-                color = Brand,
+                if (session.isActive) "Active" else TimerMath.formatDuration(durationMillis),
+                color = durationColor,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -1282,7 +1312,7 @@ private fun StartFastDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Start ${plan.name} fast") },
+        title = { Text("Start ${plan.displayLabel} fast") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -1348,7 +1378,7 @@ private fun LogFastDialog(
 ) {
     val now = remember { System.currentTimeMillis() }
     val defaultStart = now - selectedPlan.fastingMinutes * 60_000L
-    var planName by remember { mutableStateOf(selectedPlan.name) }
+    var planName by remember { mutableStateOf(selectedPlan.displayLabel) }
     var targetHours by remember { mutableStateOf((selectedPlan.fastingMinutes / 60.0).trimNumber()) }
     var startMillis by remember { mutableLongStateOf(defaultStart) }
     var endMillis by remember { mutableLongStateOf(now) }
@@ -2550,3 +2580,8 @@ private val TealCard = Color(0xFF4F8E8E)
 private val GoldCard = Color(0xFFE2AE62)
 private val BlueCard = Color(0xFF2478A8)
 private val GreenCard = Color(0xFF5D9779)
+
+// History duration coding: green for 16h+, yellow for 10-16h, red below 10h.
+private val HistoryGreen = GreenCard
+private val HistoryYellow = GoldCard
+private val HistoryRed = Color(0xFFC44536)
