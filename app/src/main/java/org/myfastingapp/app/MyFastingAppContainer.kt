@@ -21,5 +21,5 @@ class MyFastingAppContainer(context: Context) {
     val settingsStore = SettingsStore(appContext)
     val backupCodec = BackupCodec()
     val repository = FastRepository(database.fastSessionDao(), database.weightEntryDao(), settingsStore, backupCodec)
-    val reminderScheduler = FastReminderScheduler(appContext)
+    val reminderScheduler = FastReminderScheduler(appContext, settingsStore)
 }

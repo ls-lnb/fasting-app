@@ -5,7 +5,9 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -76,6 +78,28 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    /**
+     * Atomically claims milestone alerts for this session and returns only the
+     * percents that had not been notified yet. State resets automatically when
+     * the active session id changes, so each fast starts with a clean slate.
+     */
+    suspend fun claimMilestoneNotifications(sessionId: Long, percents: List<Int>): List<Int> {
+        if (percents.isEmpty()) return emptyList()
+        var pending = emptyList<Int>()
+        context.myFastingAppSettings.edit { prefs ->
+            val result = claimMilestones(
+                storedSessionId = prefs[Keys.MILESTONE_NOTIFY_SESSION],
+                storedShown = prefs[Keys.MILESTONE_NOTIFY_SHOWN] ?: emptySet(),
+                sessionId = sessionId,
+                candidates = percents,
+            )
+            prefs[Keys.MILESTONE_NOTIFY_SESSION] = result.sessionId
+            prefs[Keys.MILESTONE_NOTIFY_SHOWN] = result.shown
+            pending = result.pending
+        }
+        return pending
+    }
+
     suspend fun setTargetWeightKg(weightKg: Double?) {
         context.myFastingAppSettings.edit {
             if (weightKg == null) {
@@ -121,5 +145,29 @@ class SettingsStore(private val context: Context) {
         val MILESTONE_ALERTS_ENABLED = booleanPreferencesKey("milestone_alerts_enabled")
         val MILESTONE_PERCENTS = stringPreferencesKey("milestone_percents")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val MILESTONE_NOTIFY_SESSION = longPreferencesKey("milestone_notify_session")
+        val MILESTONE_NOTIFY_SHOWN = stringSetPreferencesKey("milestone_notify_shown")
     }
+}
+
+internal data class MilestoneClaim(
+    val sessionId: Long,
+    val shown: Set<String>,
+    val pending: List<Int>,
+)
+
+/** Pure dedupe logic behind [SettingsStore.claimMilestoneNotifications]; unit tested. */
+internal fun claimMilestones(
+    storedSessionId: Long?,
+    storedShown: Set<String>,
+    sessionId: Long,
+    candidates: List<Int>,
+): MilestoneClaim {
+    val shown = if (storedSessionId == sessionId) storedShown else emptySet()
+    val pending = candidates.filter { "$sessionId:$it" !in shown }
+    return MilestoneClaim(
+        sessionId = sessionId,
+        shown = shown + pending.map { "$sessionId:$it" },
+        pending = pending,
+    )
 }

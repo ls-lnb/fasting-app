@@ -12,7 +12,7 @@ MyFastingApp is a fully offline, GPLv3 Android fasting tracker. It has no accoun
 - Light, dark, and follow-system theme selectable in Settings, with a purpose-built dark palette.
 - Week, month, and year trend views for fasting and weight.
 - Home-screen widget with idle and active states, progress ring, and start/end/open controls.
-- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings.
+- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings. A 15-minute background refresh keeps the status progress current and backfills any milestone alert the device failed to deliver.
 - Local JSON backup import/export and CSV session export through Android's Storage Access Framework.
 
 ## Build

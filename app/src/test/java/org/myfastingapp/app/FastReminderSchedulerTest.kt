@@ -11,17 +11,29 @@ import org.myfastingapp.app.notify.planFastAlarms
 
 class FastReminderSchedulerTest {
     @Test
-    fun alarmPlanHasNoPeriodicWakeups() {
+    fun alarmPlanIncludesPeriodicRefreshMilestonesAndPhases() {
         val alarms = planFastAlarms(session(), UserSettings(), nowEpochMillis = HOUR_MILLIS)
 
         val milestones = alarms.filter { it.kind == FastAlarmKind.MILESTONE }
         val phaseUpdates = alarms.filter { it.kind == FastAlarmKind.PHASE_UPDATE }
+        val refresh = alarms.single { it.kind == FastAlarmKind.REFRESH }
 
         assertEquals(listOf(25, 50, 75, 90, 95, 100), milestones.map { it.milestonePercent })
         assertTrue(milestones.all { it.wakeDevice })
         assertEquals(listOf(4, 12, 18, 24), phaseUpdates.map { it.phaseHour })
         assertTrue(phaseUpdates.all { !it.wakeDevice })
         assertFalse(alarms.any { it.kind == FastAlarmKind.TARGET_REMINDER })
+        // Periodic refresh keeps the ongoing notification's progress current between events.
+        assertEquals(HOUR_MILLIS + 15 * MINUTE_MILLIS, refresh.triggerAtEpochMillis)
+        assertTrue(refresh.wakeDevice)
+    }
+
+    @Test
+    fun periodicRefreshIsReplannedWhenOtherAlarmsElapsed() {
+        val alarms = planFastAlarms(session(), UserSettings(), nowEpochMillis = 12 * HOUR_MILLIS)
+
+        val refresh = alarms.single { it.kind == FastAlarmKind.REFRESH }
+        assertEquals(12 * HOUR_MILLIS + 15 * MINUTE_MILLIS, refresh.triggerAtEpochMillis)
     }
 
     @Test

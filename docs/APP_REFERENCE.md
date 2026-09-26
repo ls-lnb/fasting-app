@@ -117,11 +117,20 @@ Milestones are scheduled for 25%, 50%, 75%, 90%, 95%, and 100% of the active fas
 
 Milestone progress alerts are user-configurable in Settings: a master switch turns them off entirely, and individual milestone percentages can be selected. Only selected milestones are scheduled as alarms, and the receiver re-checks the settings before posting so a disabled milestone never notifies. Backdated fasts only schedule milestones that fall in the future, so past milestones are not replayed. The optional target reminder and the low-importance ongoing status notification are controlled separately.
 
-The app does not poll in the background. The one-second timer runs only while the
-timer screen is visible and the activity is resumed. Notifications and the widget
-show minute-precision snapshots and refresh only after user actions or meaningful
-fast events. Milestones may wake the device; phase-only updates use non-waking
-alarms, and target reminders are optional.
+The app does not run a foreground service or a continuously polling worker. The
+one-second timer runs only while the timer screen is visible and the activity is
+resumed.
+
+While a fast is active, a self-rearming **inexact 15-minute refresh alarm**
+(`RTC_WAKEUP`, no exact-alarm permission) reposts the ongoing status
+notification, so its progress stays current even when milestone or phase alarms
+are deferred by doze or battery saver. Milestone alerts missed while the device
+was asleep are **backfilled on the next refresh**: claims are deduplicated per
+session in DataStore so each milestone fires at most once, and thresholds passed
+more than 12 hours earlier are skipped as stale. The widget shows
+minute-precision snapshots refreshed after user actions and meaningful fast
+events. Milestones and the refresh tick may wake the device; phase-only updates
+use non-waking alarms, and target reminders are optional.
 
 ## Widget
 

@@ -1911,7 +1911,11 @@ private fun SettingsScreen(
                                 } else {
                                     uiState.settings.milestonePercents + percent
                                 }
-                                viewModel.setMilestoneAlerts(true, updated)
+                                // Keep at least one milestone selected; the master
+                                // switch above is the way to turn alerts off entirely.
+                                if (updated.isNotEmpty()) {
+                                    viewModel.setMilestoneAlerts(true, updated)
+                                }
                             },
                             label = {
                                 Text(

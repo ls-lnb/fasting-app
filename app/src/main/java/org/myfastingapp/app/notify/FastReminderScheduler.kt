@@ -5,29 +5,37 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.getSystemService
+import org.myfastingapp.app.data.SettingsStore
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.UserSettings
 
-class FastReminderScheduler(private val context: Context) {
+class FastReminderScheduler(
+    private val context: Context,
+    private val settingsStore: SettingsStore,
+) {
     private val alarmManager: AlarmManager?
         get() = context.getSystemService()
 
     private val notificationController = FastNotificationController(context)
 
-    fun schedule(session: FastSession?, settings: UserSettings, nowEpochMillis: Long = System.currentTimeMillis()) {
+    suspend fun schedule(session: FastSession?, settings: UserSettings, nowEpochMillis: Long = System.currentTimeMillis()) {
         cancelScheduledAlarms()
         notificationController.showOngoing(session, settings, nowEpochMillis)
         if (session == null) return
+
+        backfillMissedMilestones(session, settings, nowEpochMillis)
 
         planFastAlarms(session, settings, nowEpochMillis).forEach { alarm ->
             val action = when (alarm.kind) {
                 FastAlarmKind.MILESTONE -> ReminderReceiver.ACTION_FAST_MILESTONE
                 FastAlarmKind.PHASE_UPDATE -> ReminderReceiver.ACTION_FAST_NOTIFICATION_UPDATE
+                FastAlarmKind.REFRESH -> ReminderReceiver.ACTION_FAST_NOTIFICATION_UPDATE
                 FastAlarmKind.TARGET_REMINDER -> ReminderReceiver.ACTION_FAST_REMINDER
             }
             val requestCode = when (alarm.kind) {
                 FastAlarmKind.MILESTONE -> REQUEST_MILESTONE_BASE + requireNotNull(alarm.milestonePercent)
                 FastAlarmKind.PHASE_UPDATE -> REQUEST_PHASE_UPDATE_BASE + requireNotNull(alarm.phaseHour)
+                FastAlarmKind.REFRESH -> REQUEST_REFRESH
                 FastAlarmKind.TARGET_REMINDER -> REQUEST_TARGET_REMINDER
             }
             scheduleAlarm(
@@ -43,6 +51,27 @@ class FastReminderScheduler(private val context: Context) {
 
     fun cancel() {
         cancelScheduledAlarms()
+    }
+
+    /**
+     * Posts milestone alerts whose threshold passed but that were never delivered
+     * (alarms can be deferred by doze or battery saver). Claiming goes through
+     * DataStore so each milestone fires at most once per session; thresholds
+     * passed longer than [BACKFILL_WINDOW_MILLIS] ago are skipped as stale.
+     */
+    private suspend fun backfillMissedMilestones(
+        session: FastSession,
+        settings: UserSettings,
+        nowEpochMillis: Long,
+    ) {
+        val candidates = MILESTONES.filter { milestone ->
+            if (milestone !in settings.activeMilestonePercents) return@filter false
+            val passedAt = session.startEpochMillis + ((session.targetSeconds * 1_000L * milestone) / 100L)
+            passedAt <= nowEpochMillis && nowEpochMillis - passedAt <= BACKFILL_WINDOW_MILLIS
+        }
+        settingsStore.claimMilestoneNotifications(session.id, candidates).forEach { percent ->
+            notificationController.showMilestone(session, percent, nowEpochMillis)
+        }
     }
 
     private fun scheduleAlarm(
@@ -71,6 +100,7 @@ class FastReminderScheduler(private val context: Context) {
 
     private fun cancelScheduledAlarms() {
         cancelRequest(REQUEST_TARGET_REMINDER, ReminderReceiver.ACTION_FAST_REMINDER)
+        cancelRequest(REQUEST_REFRESH, ReminderReceiver.ACTION_FAST_NOTIFICATION_UPDATE)
         MILESTONES.forEach { cancelRequest(REQUEST_MILESTONE_BASE + it, ReminderReceiver.ACTION_FAST_MILESTONE) }
         PHASE_HOUR_MARKS.forEach { cancelRequest(REQUEST_PHASE_UPDATE_BASE + it, ReminderReceiver.ACTION_FAST_NOTIFICATION_UPDATE) }
     }
@@ -91,12 +121,14 @@ class FastReminderScheduler(private val context: Context) {
         const val REQUEST_TARGET_REMINDER = 3101
         const val REQUEST_MILESTONE_BASE = 3300
         const val REQUEST_PHASE_UPDATE_BASE = 3400
+        const val REQUEST_REFRESH = 3500
     }
 }
 
 internal enum class FastAlarmKind {
     MILESTONE,
     PHASE_UPDATE,
+    REFRESH,
     TARGET_REMINDER,
 }
 
@@ -114,6 +146,17 @@ internal fun planFastAlarms(
     nowEpochMillis: Long,
 ): List<PlannedFastAlarm> {
     val alarms = buildList {
+        // Self-rearming periodic refresh: keeps the ongoing notification's progress
+        // current even when milestone/phase alarms are deferred by doze or battery
+        // saver. Inexact (no exact-alarm permission); the receiver re-plans the next
+        // tick when it fires, and any later schedule() call re-arms it again.
+        add(
+            PlannedFastAlarm(
+                kind = FastAlarmKind.REFRESH,
+                triggerAtEpochMillis = nowEpochMillis + PERIODIC_REFRESH_INTERVAL_MILLIS,
+                wakeDevice = true,
+            ),
+        )
         MILESTONES.forEach { milestone ->
             if (milestone !in settings.activeMilestonePercents) return@forEach
             val triggerAt = session.startEpochMillis + ((session.targetSeconds * 1_000L * milestone) / 100L)
@@ -160,3 +203,9 @@ internal fun planFastAlarms(
 
 private val MILESTONES = UserSettings.MILESTONE_OPTIONS
 private val PHASE_HOUR_MARKS = listOf(4, 12, 18, 24)
+
+/** How often the ongoing notification refreshes in the background while fasting. */
+internal val PERIODIC_REFRESH_INTERVAL_MILLIS = 15L * 60_000L
+
+/** Passed milestones older than this are not backfilled (avoids stale bursts). */
+internal val BACKFILL_WINDOW_MILLIS = 12L * 60L * 60_000L

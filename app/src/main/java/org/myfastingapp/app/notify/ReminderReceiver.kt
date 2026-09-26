@@ -49,7 +49,11 @@ class ReminderReceiver : BroadcastReceiver() {
                             settings.milestoneAlertsEnabled &&
                             percent in settings.milestonePercents
                         ) {
-                            notificationController.showMilestone(active, percent)
+                            // Claim first so a racing refresh tick cannot post it twice.
+                            val claimed = settingsStore.claimMilestoneNotifications(active.id, listOf(percent))
+                            if (claimed.isNotEmpty()) {
+                                notificationController.showMilestone(active, percent)
+                            }
                         }
                     }
                     ACTION_FAST_REMINDER -> notificationController.showTargetReminder(active)
