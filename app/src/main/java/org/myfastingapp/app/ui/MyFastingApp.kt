@@ -2,8 +2,10 @@ package org.myfastingapp.app.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.widget.NumberPicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -105,6 +107,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
@@ -1780,6 +1783,14 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val powerManager = remember(context) { context.getSystemService(PowerManager::class.java) }
+    var backgroundAllowed by remember {
+        mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+    LifecycleResumeEffect(Unit) {
+        backgroundAllowed = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        onPauseOrDispose { }
+    }
     var targetText by rememberSaveable(uiState.settings.weightUnit, uiState.settings.targetWeightKg) {
         mutableStateOf(uiState.settings.targetWeightKg?.let { displayWeightValue(it, uiState.settings.weightUnit).trimNumber() } ?: "")
     }
@@ -1973,6 +1984,45 @@ private fun SettingsScreen(
                     colors = settingsSwitchColors(),
                 )
             }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Unrestricted background", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (backgroundAllowed) {
+                            "Battery optimization exemption granted"
+                        } else {
+                            "Not granted - alerts may be delayed when the screen is off"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (backgroundAllowed) {
+                    Text(
+                        "Allowed",
+                        color = Brand,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                } else {
+                    Button(
+                        onClick = { requestIgnoreBatteryOptimization(context) },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Wine, contentColor = Color.White),
+                    ) {
+                        Text("Allow", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Text(
+                "If alerts still arrive late: keep the app out of recent-swipe kills and check your phone maker's battery settings (for example vivo Background power control).",
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+            )
         }
         SettingsCompactCard(title = "Backup") {
             Text("JSON includes fasts, weights, target, unit, and app settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
@@ -2068,6 +2118,21 @@ private fun settingsSwitchColors() = SwitchDefaults.colors(
     uncheckedTrackColor = SwitchTrackOff,
     uncheckedBorderColor = Color.Transparent,
 )
+
+private fun requestIgnoreBatteryOptimization(context: Context) {
+    val intent = Intent(
+        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+        Uri.parse("package:${context.packageName}"),
+    )
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Some OEMs block the direct prompt; fall back to the settings list.
+        runCatching {
+            context.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+}
 
 @Composable
 private fun SettingsCompactCard(title: String, content: @Composable ColumnScope.() -> Unit) {

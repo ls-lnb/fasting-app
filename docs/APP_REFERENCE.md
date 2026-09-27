@@ -64,7 +64,7 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - Fasts: built-in plans and custom duration picker.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
 - History: active and completed sessions, manual fast logging, editing, and deletion.
-- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
 
 The dark theme uses a dedicated palette (deep navy surfaces, brightened brand indigo, light text) rather than an inverted light palette. System bar colors and icon contrast follow the in-app theme; on API 35+ the platform's enforced edge-to-edge behavior takes precedence. The home-screen widget keeps its wallpaper-agnostic design in both themes.
 
