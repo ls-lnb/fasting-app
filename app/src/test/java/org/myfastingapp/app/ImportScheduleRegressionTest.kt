@@ -8,7 +8,6 @@ import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.notify.FastAlarmKind
-import org.myfastingapp.app.notify.PERIODIC_REFRESH_INTERVAL_MILLIS
 import org.myfastingapp.app.notify.planFastAlarms
 
 /**
@@ -93,12 +92,6 @@ class ImportScheduleRegressionTest {
         assertEquals(
             listOf(4, 12, 18, 24),
             alarms.filter { it.kind == FastAlarmKind.PHASE_UPDATE }.map { it.phaseHour },
-        )
-        // The periodic refresh tick is planned regardless of milestone settings.
-        val refresh = alarms.single { it.kind == FastAlarmKind.REFRESH }
-        assertEquals(
-            session.startEpochMillis + 3_600_000L + PERIODIC_REFRESH_INTERVAL_MILLIS,
-            refresh.triggerAtEpochMillis,
         )
     }
 

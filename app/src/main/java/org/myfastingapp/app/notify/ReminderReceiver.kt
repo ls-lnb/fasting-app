@@ -31,38 +31,39 @@ class ReminderReceiver : BroadcastReceiver() {
                 val repository = app.container.repository
                 val settingsStore = app.container.settingsStore
                 val notificationController = FastNotificationController(context)
-                val active = repository.activeSession.first()
-                val settings = settingsStore.settings.first()
 
                 when (intent.action) {
                     ACTION_NOTIFICATION_START -> {
-                        if (active == null) {
+                        val settings = settingsStore.settings.first()
+                        if (repository.activeSession.first() == null) {
                             repository.startFast(settings.defaultPlan)
                         }
                     }
                     ACTION_NOTIFICATION_END -> repository.endActiveFast()
                     ACTION_FAST_MILESTONE -> {
                         val percent = intent.getIntExtra(EXTRA_MILESTONE_PERCENT, 0)
+                        val active = repository.activeSession.first()
+                        val settings = settingsStore.settings.first()
                         if (
                             active != null &&
                             active.id == intent.getLongExtra(EXTRA_SESSION_ID, -1L) &&
                             settings.milestoneAlertsEnabled &&
                             percent in settings.milestonePercents
                         ) {
-                            // Claim first so a racing refresh tick cannot post it twice.
-                            val claimed = settingsStore.claimMilestoneNotifications(active.id, listOf(percent))
-                            if (claimed.isNotEmpty()) {
-                                notificationController.showMilestone(active, percent)
-                            }
+                            notificationController.showMilestone(active, percent)
                         }
                     }
-                    ACTION_FAST_REMINDER -> notificationController.showTargetReminder(active)
+                    ACTION_FAST_REMINDER -> {
+                        val active = repository.activeSession.first()
+                        notificationController.showTargetReminder(active)
+                    }
                     ACTION_FAST_NOTIFICATION_UPDATE -> Unit
                 }
 
                 repository.repairActivePlanTarget()
-                val refreshedActive = repository.activeSession.first()
-                app.container.reminderScheduler.schedule(refreshedActive, settings)
+                val active = repository.activeSession.first()
+                val settings = settingsStore.settings.first()
+                app.container.reminderScheduler.schedule(active, settings)
                 MyFastingAppWidgetProvider.updateWidgets(context)
             } finally {
                 pending.finish()
