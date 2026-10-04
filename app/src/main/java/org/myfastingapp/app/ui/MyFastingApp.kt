@@ -81,6 +81,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1175,12 +1176,16 @@ private fun ChartLegend(color: Color, label: String) {
 private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppViewModel) {
     var editing by remember { mutableStateOf<FastSession?>(null) }
     var loggingFast by remember { mutableStateOf(false) }
-    val visibleSessions = uiState.sessions.take(5)
+    var visibleCount by rememberSaveable { mutableIntStateOf(HISTORY_PAGE_SIZE) }
+    val shownCount = visibleCount.coerceAtMost(uiState.sessions.size)
+    val visibleSessions = uiState.sessions.take(shownCount)
+    val sessionsByMonth = remember(visibleSessions) { groupSessionsByMonth(visibleSessions) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(
@@ -1211,17 +1216,49 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                 ) {
                     Column {
                         Text("${uiState.sessions.size} saved fasts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
-                        Text("Showing latest ${visibleSessions.size}", style = MaterialTheme.typography.bodySmall, color = Muted)
+                        Text("Showing $shownCount of ${uiState.sessions.size}", style = MaterialTheme.typography.bodySmall, color = Muted)
                     }
                     Text("${uiState.stats.currentStreakDays}d streak", color = Brand, fontWeight = FontWeight.Bold)
                 }
             }
-            visibleSessions.forEach { session ->
-                CompactHistoryRow(
-                    session = session,
-                    onEdit = { editing = session },
-                    onDelete = { viewModel.deleteFast(session.id) },
+            sessionsByMonth.forEach { (month, monthSessions) ->
+                Text(
+                    text = month.format(monthYearFormatter),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Slate,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
+                monthSessions.forEach { session ->
+                    CompactHistoryRow(
+                        session = session,
+                        onEdit = { editing = session },
+                        onDelete = { viewModel.deleteFast(session.id) },
+                    )
+                }
+            }
+            if (shownCount < uiState.sessions.size) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        "${uiState.sessions.size - shownCount} more not shown",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Muted,
+                    )
+                    OutlinedButton(
+                        onClick = { visibleCount = shownCount + HISTORY_PAGE_SIZE },
+                        modifier = Modifier
+                            .fillMaxWidth(0.62f)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(19.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Wine),
+                    ) {
+                        Text("Show $HISTORY_PAGE_SIZE more", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1245,6 +1282,15 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                 loggingFast = false
             },
         )
+    }
+}
+
+private const val HISTORY_PAGE_SIZE = 10
+
+private fun groupSessionsByMonth(sessions: List<FastSession>): Map<YearMonth, List<FastSession>> {
+    val zone = ZoneId.systemDefault()
+    return sessions.groupBy { session ->
+        YearMonth.from(Instant.ofEpochMilli(session.startEpochMillis).atZone(zone).toLocalDate())
     }
 }
 
