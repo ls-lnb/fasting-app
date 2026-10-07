@@ -8,6 +8,22 @@ data class FastPlan(
 ) {
     val label: String
         get() = eatingMinutes?.let { "$name (${fastingMinutes / 60}:${it / 60})" } ?: name
+
+    /** Display name; custom plans show their duration split, e.g. "15:9". */
+    val displayLabel: String
+        get() = if (id == FastPlans.CUSTOM_ID) customSplitLabel(fastingMinutes.toLong()) else name
+}
+
+/**
+ * Split label for a custom fast derived from its duration, e.g. 15h09 ->
+ * "15:9", matching the built-in plan naming (fasting hours : remaining hours
+ * of the cycle). The duration is rounded to the nearest hour (30 minutes and
+ * above rounds up); multi-day fasts use a 48-hour cycle, e.g. 25h -> "25:23".
+ */
+fun customSplitLabel(totalMinutes: Long): String {
+    val roundedHours = ((totalMinutes.coerceAtLeast(0L) + 30L) / 60L).coerceAtLeast(1L)
+    val cycleHours = ((roundedHours + 23L) / 24L) * 24L
+    return "$roundedHours:${cycleHours - roundedHours}"
 }
 
 object FastPlans {

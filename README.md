@@ -36,7 +36,7 @@ The release build enables code minification and resource shrinking. Release sign
 
 The manifest intentionally omits `INTERNET` and `ACCESS_NETWORK_STATE`. App data stays in the local Room database and DataStore preferences unless the user explicitly exports a backup.
 
-The only declared app permissions are local notification support and reboot handling for local reminders/widget refresh. MyFastingApp does not use Google Play Services, Firebase, analytics, crash reporting, ads, remote config, or health/cloud integrations.
+The only declared app permissions are local notification support, reboot handling for local reminders/widget refresh, and a user-initiated battery-optimization exemption request (prompted only when the user taps Allow in Settings). MyFastingApp does not use Google Play Services, Firebase, analytics, crash reporting, ads, remote config, or health/cloud integrations.
 
 ## Project Docs
 

@@ -89,7 +89,7 @@ class MyFastingAppWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_active_panel, View.GONE)
             views.setTextViewText(
                 R.id.widget_idle_detail,
-                "Default ${settings.defaultPlan.name} - ${TimerMath.formatMinutes(settings.defaultPlan.fastingMinutes)}",
+                "Default ${settings.defaultPlan.displayLabel} - ${TimerMath.formatMinutes(settings.defaultPlan.fastingMinutes)}",
             )
             return views
         }

@@ -35,8 +35,8 @@ class FastNotificationController(private val context: Context) {
             val plan = settings.defaultPlan
             builder
                 .setContentTitle("MyFastingApp is ready")
-                .setContentText("Start ${plan.name} - ${TimerMath.formatMinutes(plan.fastingMinutes)}")
-                .setStyle(NotificationCompat.BigTextStyle().bigText("Start ${plan.name} when your next fast begins. Everything stays on this device."))
+                .setContentText("Start ${plan.displayLabel} - ${TimerMath.formatMinutes(plan.fastingMinutes)}")
+                .setStyle(NotificationCompat.BigTextStyle().bigText("Start ${plan.displayLabel} when your next fast begins. Everything stays on this device."))
                 .setShowWhen(false)
                 .addAction(R.drawable.ic_myfastingapp, "Start fast", actionIntent(ReminderReceiver.ACTION_NOTIFICATION_START, REQUEST_START))
         } else {
@@ -52,7 +52,7 @@ class FastNotificationController(private val context: Context) {
                 .setContentText("${TimerMath.formatDuration(progress.elapsedMillis)} elapsed - $remainingText")
                 .setStyle(
                     NotificationCompat.BigTextStyle().bigText(
-                        "${session.planName}: ${TimerMath.formatDuration(progress.elapsedMillis)} elapsed, $remainingText. ${phase.body}",
+                        "${session.displayPlanName}: ${TimerMath.formatDuration(progress.elapsedMillis)} elapsed, $remainingText. ${phase.body}",
                     ),
                 )
                 .setProgress(100, progress.progressPercent.coerceAtMost(100), false)
@@ -73,7 +73,7 @@ class FastNotificationController(private val context: Context) {
             .setSmallIcon(R.drawable.ic_myfastingapp)
             .setContentTitle("$percent% fast progress")
             .setContentText("${phase.title}: ${TimerMath.formatDuration(progress.elapsedMillis)} elapsed.")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("${session.planName} is $percent% complete. ${phase.body}"))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("${session.displayPlanName} is $percent% complete. ${phase.body}"))
             .setColor(phase.colorArgb)
             .setContentIntent(openAppIntent())
             .setAutoCancel(true)

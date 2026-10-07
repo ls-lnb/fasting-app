@@ -61,10 +61,10 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 ## Screens
 
 - Timer: active or idle state, plan chip, progress ring, phase label, elapsed seconds, remaining minutes, start/end action, and editable active fast times. Starting a fast opens a start dialog that accepts a backdated start time (quick 30 min/1 h/2 h/3 h shortcuts or a date-time wheel) before the fast is created; the post-start pencil edit remains available.
-- Fasts: built-in plans and custom duration picker.
+- Fasts: predefined plan picker (built-in plans plus a custom duration card). Choosing a plan only selects it and returns to the Timer tab; fasts are always started from Timer.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
-- History: active and completed sessions, manual fast logging, editing, and deletion.
-- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+- History: active and completed sessions grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row's duration is coloured by how the fast compared with the plan it began with: green at 100% of the plan, yellow from 85%, and red below that.
+- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
 
 The dark theme uses a dedicated palette (deep navy surfaces, brightened brand indigo, light text) rather than an inverted light palette. System bar colors and icon contrast follow the in-app theme; on API 35+ the platform's enforced edge-to-edge behavior takes precedence. The home-screen widget keeps its wallpaper-agnostic design in both themes.
 
@@ -117,11 +117,11 @@ Milestones are scheduled for 25%, 50%, 75%, 90%, 95%, and 100% of the active fas
 
 Milestone progress alerts are user-configurable in Settings: a master switch turns them off entirely, and individual milestone percentages can be selected. Only selected milestones are scheduled as alarms, and the receiver re-checks the settings before posting so a disabled milestone never notifies. Backdated fasts only schedule milestones that fall in the future, so past milestones are not replayed. The optional target reminder and the low-importance ongoing status notification are controlled separately.
 
-The app does not poll in the background. The one-second timer runs only while the
-timer screen is visible and the activity is resumed. Notifications and the widget
-show minute-precision snapshots and refresh only after user actions or meaningful
-fast events. Milestones may wake the device; phase-only updates use non-waking
-alarms, and target reminders are optional.
+The app does not poll in the background. The one-second timer runs only while
+the timer screen is visible and the activity is resumed. Notifications and the
+widget show minute-precision snapshots and refresh only after user actions or
+meaningful fast events. Milestones may wake the device; phase-only updates use
+non-waking alarms, and target reminders are optional.
 
 ## Widget
 

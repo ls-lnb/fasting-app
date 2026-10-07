@@ -2,8 +2,10 @@ package org.myfastingapp.app.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.widget.NumberPicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +81,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -105,11 +108,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.myfastingapp.app.backup.backupFileName
 import org.myfastingapp.app.domain.FastPlan
+import org.myfastingapp.app.domain.FastPlanOutcome
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhases
@@ -120,6 +126,7 @@ import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightTrend
 import org.myfastingapp.app.domain.WeightTrendCalculator
 import org.myfastingapp.app.domain.WeightUnit
+import org.myfastingapp.app.domain.customSplitLabel
 import org.myfastingapp.app.domain.kgToLb
 import org.myfastingapp.app.domain.lbToKg
 import java.time.Instant
@@ -304,14 +311,16 @@ private fun TimerStatsStrip(uiState: MyFastingAppUiState, now: Long) {
 @Composable
 private fun TimerStatPill(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.height(56.dp),
+        modifier = modifier.heightIn(min = 60.dp),
         shape = RoundedCornerShape(18.dp),
         color = Cream.copy(alpha = 0.35f),
         border = BorderStroke(1.dp, StatPillBorder),
         shadowElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -344,7 +353,7 @@ private fun TimerHero(
     onEnd: () -> Unit,
 ) {
     val elapsedMillis = session?.durationMillis(now) ?: 0L
-    val targetSeconds = session?.displayTargetSeconds() ?: selectedPlan.fastingMinutes * 60L
+    val targetSeconds = session?.plannedSeconds ?: selectedPlan.fastingMinutes * 60L
     val start = session?.startEpochMillis ?: now
     val progress = TimerMath.progress(start, targetSeconds, now)
     val phase = session?.let { FastingPhases.forElapsed(elapsedMillis) }
@@ -489,7 +498,7 @@ private fun FastTimingPanel(
     onEdit: () -> Unit,
 ) {
     val start = session?.startEpochMillis ?: now
-    val plannedEnd = start + (session?.displayTargetSeconds() ?: selectedPlan.fastingMinutes * 60L) * 1_000L
+    val plannedEnd = start + (session?.plannedSeconds ?: selectedPlan.fastingMinutes * 60L) * 1_000L
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -565,10 +574,10 @@ private fun TimingBlock(
 @Composable
 private fun SelectedPlanStrip(session: FastSession?, selectedPlan: FastPlan, onClick: () -> Unit) {
     val label = if (session != null) {
-        val target = TimerMath.formatMinutes((session.displayTargetSeconds() / 60L).toInt())
-        "${session.planName.uppercase()} FAST - $target"
+        val target = TimerMath.formatMinutes((session.plannedSeconds / 60L).toInt())
+        "${session.displayPlanName.uppercase()} FAST - $target"
     } else {
-        "${selectedPlan.name.uppercase()} FAST - ${TimerMath.formatMinutes(selectedPlan.fastingMinutes)}"
+        "${selectedPlan.displayLabel.uppercase()} FAST - ${TimerMath.formatMinutes(selectedPlan.fastingMinutes)}"
     }
     Surface(
         onClick = onClick,
@@ -606,16 +615,17 @@ private fun FastsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SectionHeader(title = "Fasts", action = null)
+        Text(
+            "Tap a plan to use it, then start the fast from the Timer tab.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Muted,
+            modifier = Modifier.padding(start = 4.dp),
+        )
         CustomDurationCard(
             minutes = customMinutes,
             onMinutesChange = { customMinutes = it.coerceIn(30, 7 * 24 * 60) },
             onUse = {
                 viewModel.setCustomPlan(customMinutes)
-                onPlanChosen()
-            },
-            onStart = {
-                viewModel.setCustomPlan(customMinutes)
-                viewModel.startFast(FastPlans.resolve(FastPlans.CUSTOM_ID, customMinutes))
                 onPlanChosen()
             },
         )
@@ -629,10 +639,6 @@ private fun FastsScreen(
                         selected = uiState.settings.defaultPlanId == plan.id,
                         onSelect = {
                             viewModel.selectPlan(plan.id)
-                            onPlanChosen()
-                        },
-                        onStart = {
-                            viewModel.startFast(plan)
                             onPlanChosen()
                         },
                         modifier = Modifier.weight(1f),
@@ -651,7 +657,6 @@ private fun CustomDurationCard(
     minutes: Int,
     onMinutesChange: (Int) -> Unit,
     onUse: () -> Unit,
-    onStart: () -> Unit,
 ) {
     val hours = minutes / 60
     val minuteRemainder = minutes % 60
@@ -660,7 +665,7 @@ private fun CustomDurationCard(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Custom", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(customSplitLabel(minutes.toLong()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
                     Text(TimerMath.formatMinutes(minutes), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Brand)
                 }
                 Surface(shape = RoundedCornerShape(16.dp), color = TintSurface) {
@@ -689,13 +694,8 @@ private fun CustomDurationCard(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onUse, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f).height(40.dp)) {
-                    Text("Use")
-                }
-                Button(onClick = onStart, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f).height(40.dp)) {
-                    Text("Start now")
-                }
+            Button(onClick = onUse, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().height(40.dp)) {
+                Text("Use this duration")
             }
         }
     }
@@ -761,35 +761,30 @@ private fun CompactPlanCard(
     color: Color,
     selected: Boolean,
     onSelect: () -> Unit,
-    onStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onSelect,
-        modifier = modifier.height(86.dp),
+        modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(18.dp),
         color = color,
         shadowElevation = if (selected) 6.dp else 2.dp,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
-                    Text(plan.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(TimerMath.formatMinutes(plan.fastingMinutes), color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelMedium)
-                }
-                Text(if (selected) "On" else "Start", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(plan.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(TimerMath.formatMinutes(plan.fastingMinutes), color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelMedium)
             }
-            Button(
-                onClick = onStart,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(30.dp),
-                shape = RoundedCornerShape(15.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = color),
-            ) {
-                Text("Start", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            }
+            Text(
+                text = if (selected) "On" else "Use",
+                color = Color.White.copy(alpha = if (selected) 1f else 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -803,7 +798,8 @@ private fun TrendsScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppVi
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(title = "Trends", action = null)
@@ -922,29 +918,35 @@ private fun RecentFastsTrendCard(
 @Composable
 private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
     val buckets = fastTrendBuckets(sessions, period)
-    val maxHours = buckets.maxOfOrNull { it.hours }?.coerceAtLeast(24.0) ?: 24.0
-    val axisMax = ceil(maxHours / 6.0).coerceAtLeast(4.0) * 6.0
+    val maxHours = buckets.maxOfOrNull { it.hours } ?: 0.0
+    // 4h gridline steps keep small differences between fasts visible; widen to
+    // 8h steps only when fasts exceed a day so labels stay readable.
+    val step = if (maxHours <= 24.0) 4.0 else 8.0
+    val axisMax = (ceil(maxHours / step) * step).coerceAtLeast(step * 2.0)
+    val stepCount = (axisMax / step).toInt()
+    val yLabels = (stepCount downTo 0).map { "${(it * step).roundToInt()}h" }
+    val plotHeight = 100.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(104.dp),
+            .height(126.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ChartYAxis(maxLabel = "${axisMax.roundToInt()}h", midLabel = "${(axisMax / 2.0).roundToInt()}h", minLabel = "0h", height = 72.dp)
+        LabeledYAxis(labels = yLabels, height = plotHeight)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(72.dp),
+                    .height(plotHeight),
             ) {
-                ChartGrid()
+                ChartGrid(lineCount = stepCount + 1)
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(if (buckets.size > 8) 4.dp else 8.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     buckets.forEach { bucket ->
-                        val barHeight = if (bucket.hours <= 0.0) 4.dp else ((bucket.hours / axisMax) * 66.0).coerceAtLeast(10.0).toFloat().dp
+                        val barHeight = if (bucket.hours <= 0.0) 4.dp else ((bucket.hours / axisMax) * 94.0).coerceAtLeast(10.0).toFloat().dp
                         Box(
                             modifier = Modifier.weight(1f),
                             contentAlignment = Alignment.BottomCenter,
@@ -984,6 +986,21 @@ private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
 }
 
 @Composable
+private fun LabeledYAxis(labels: List<String>, height: Dp) {
+    Column(
+        modifier = Modifier
+            .width(46.dp)
+            .height(height),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.End,
+    ) {
+        labels.forEach { label ->
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Muted, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun ChartYAxis(maxLabel: String, midLabel: String, minLabel: String, height: Dp = 118.dp) {
     Column(
         modifier = Modifier
@@ -999,11 +1016,12 @@ private fun ChartYAxis(maxLabel: String, midLabel: String, minLabel: String, hei
 }
 
 @Composable
-private fun ChartGrid() {
+private fun ChartGrid(lineCount: Int) {
     val gridColor = GridLine
     Canvas(modifier = Modifier.fillMaxSize()) {
-        repeat(3) { index ->
-            val y = size.height * index / 2f
+        val divisions = (lineCount - 1).coerceAtLeast(1)
+        repeat(lineCount.coerceAtLeast(1)) { index ->
+            val y = size.height * index / divisions
             drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 2f)
         }
     }
@@ -1148,12 +1166,16 @@ private fun ChartLegend(color: Color, label: String) {
 private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppViewModel) {
     var editing by remember { mutableStateOf<FastSession?>(null) }
     var loggingFast by remember { mutableStateOf(false) }
-    val visibleSessions = uiState.sessions.take(5)
+    var visibleCount by rememberSaveable { mutableIntStateOf(HISTORY_PAGE_SIZE) }
+    val shownCount = visibleCount.coerceAtMost(uiState.sessions.size)
+    val visibleSessions = uiState.sessions.take(shownCount)
+    val sessionsByMonth = remember(visibleSessions) { groupSessionsByMonth(visibleSessions) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionHeader(
@@ -1184,17 +1206,49 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                 ) {
                     Column {
                         Text("${uiState.sessions.size} saved fasts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
-                        Text("Showing latest ${visibleSessions.size}", style = MaterialTheme.typography.bodySmall, color = Muted)
+                        Text("Showing $shownCount of ${uiState.sessions.size}", style = MaterialTheme.typography.bodySmall, color = Muted)
                     }
                     Text("${uiState.stats.currentStreakDays}d streak", color = Brand, fontWeight = FontWeight.Bold)
                 }
             }
-            visibleSessions.forEach { session ->
-                CompactHistoryRow(
-                    session = session,
-                    onEdit = { editing = session },
-                    onDelete = { viewModel.deleteFast(session.id) },
+            sessionsByMonth.forEach { (month, monthSessions) ->
+                Text(
+                    text = month.format(monthYearFormatter),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Slate,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
+                monthSessions.forEach { session ->
+                    CompactHistoryRow(
+                        session = session,
+                        onEdit = { editing = session },
+                        onDelete = { viewModel.deleteFast(session.id) },
+                    )
+                }
+            }
+            if (shownCount < uiState.sessions.size) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        "${uiState.sessions.size - shownCount} more not shown",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Muted,
+                    )
+                    OutlinedButton(
+                        onClick = { visibleCount = shownCount + HISTORY_PAGE_SIZE },
+                        modifier = Modifier
+                            .fillMaxWidth(0.62f)
+                            .height(38.dp),
+                        shape = RoundedCornerShape(19.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Wine),
+                    ) {
+                        Text("Show $HISTORY_PAGE_SIZE more", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1221,8 +1275,24 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
     }
 }
 
+private const val HISTORY_PAGE_SIZE = 10
+
+private fun groupSessionsByMonth(sessions: List<FastSession>): Map<YearMonth, List<FastSession>> {
+    val zone = ZoneId.systemDefault()
+    return sessions.groupBy { session ->
+        YearMonth.from(Instant.ofEpochMilli(session.startEpochMillis).atZone(zone).toLocalDate())
+    }
+}
+
 @Composable
 private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val now = System.currentTimeMillis()
+    val durationMillis = session.durationMillis(session.endEpochMillis ?: now)
+    val durationColor = when (session.planOutcome(now)) {
+        FastPlanOutcome.Met -> HistoryGreen
+        FastPlanOutcome.Near -> HistoryYellow
+        FastPlanOutcome.Short -> HistoryRed
+    }
     Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
         Row(
             modifier = Modifier
@@ -1233,7 +1303,7 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(session.planName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
+                Text(session.displayPlanName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
                 Text(
                     "${formatFriendlyDateTime(session.startEpochMillis)} -> ${session.endEpochMillis?.let(::formatFriendlyDateTime) ?: "Now"}",
                     style = MaterialTheme.typography.bodySmall,
@@ -1242,8 +1312,8 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
                 )
             }
             Text(
-                if (session.isActive) "Active" else TimerMath.formatDuration(session.durationMillis(session.endEpochMillis ?: System.currentTimeMillis())),
-                color = Brand,
+                if (session.isActive) "Active" else TimerMath.formatDuration(durationMillis),
+                color = durationColor,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -1282,7 +1352,7 @@ private fun StartFastDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Start ${plan.name} fast") },
+        title = { Text("Start ${plan.displayLabel} fast") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -1348,7 +1418,7 @@ private fun LogFastDialog(
 ) {
     val now = remember { System.currentTimeMillis() }
     val defaultStart = now - selectedPlan.fastingMinutes * 60_000L
-    var planName by remember { mutableStateOf(selectedPlan.name) }
+    var planName by remember { mutableStateOf(selectedPlan.displayLabel) }
     var targetHours by remember { mutableStateOf((selectedPlan.fastingMinutes / 60.0).trimNumber()) }
     var startMillis by remember { mutableLongStateOf(defaultStart) }
     var endMillis by remember { mutableLongStateOf(now) }
@@ -1410,7 +1480,7 @@ private fun LogFastDialog(
 
 @Composable
 private fun EditFastDialog(session: FastSession, onDismiss: () -> Unit, onSave: (Long, Long) -> Unit) {
-    val targetSeconds = session.displayTargetSeconds()
+    val targetSeconds = session.plannedSeconds
     val plannedEnd = session.endEpochMillis ?: (session.startEpochMillis + targetSeconds * 1_000L)
     var startMillis by remember(session.id) { mutableLongStateOf(session.startEpochMillis) }
     var endMillis by remember(session.id) { mutableLongStateOf(plannedEnd) }
@@ -1750,6 +1820,14 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val powerManager = remember(context) { context.getSystemService(PowerManager::class.java) }
+    var backgroundAllowed by remember {
+        mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+    LifecycleResumeEffect(Unit) {
+        backgroundAllowed = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        onPauseOrDispose { }
+    }
     var targetText by rememberSaveable(uiState.settings.weightUnit, uiState.settings.targetWeightKg) {
         mutableStateOf(uiState.settings.targetWeightKg?.let { displayWeightValue(it, uiState.settings.weightUnit).trimNumber() } ?: "")
     }
@@ -1911,7 +1989,11 @@ private fun SettingsScreen(
                                 } else {
                                     uiState.settings.milestonePercents + percent
                                 }
-                                viewModel.setMilestoneAlerts(true, updated)
+                                // Keep at least one milestone selected; the master
+                                // switch above is the way to turn alerts off entirely.
+                                if (updated.isNotEmpty()) {
+                                    viewModel.setMilestoneAlerts(true, updated)
+                                }
                             },
                             label = {
                                 Text(
@@ -1939,12 +2021,51 @@ private fun SettingsScreen(
                     colors = settingsSwitchColors(),
                 )
             }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Unrestricted background", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (backgroundAllowed) {
+                            "Battery optimization exemption granted"
+                        } else {
+                            "Not granted - alerts may be delayed when the screen is off"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (backgroundAllowed) {
+                    Text(
+                        "Allowed",
+                        color = Brand,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                } else {
+                    Button(
+                        onClick = { requestIgnoreBatteryOptimization(context) },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Wine, contentColor = Color.White),
+                    ) {
+                        Text("Allow", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Text(
+                "If alerts still arrive late: keep the app out of recent-swipe kills and check your phone maker's battery settings (for example vivo Background power control).",
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+            )
         }
         SettingsCompactCard(title = "Backup") {
             Text("JSON includes fasts, weights, target, unit, and app settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { exportJsonLauncher.launch("myfastingapp-backup.json") },
+                    onClick = { exportJsonLauncher.launch(backupFileName()) },
                     modifier = Modifier
                         .weight(1f)
                         .height(38.dp),
@@ -2034,6 +2155,21 @@ private fun settingsSwitchColors() = SwitchDefaults.colors(
     uncheckedTrackColor = SwitchTrackOff,
     uncheckedBorderColor = Color.Transparent,
 )
+
+private fun requestIgnoreBatteryOptimization(context: Context) {
+    val intent = Intent(
+        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+        Uri.parse("package:${context.packageName}"),
+    )
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Some OEMs block the direct prompt; fall back to the settings list.
+        runCatching {
+            context.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+}
 
 @Composable
 private fun SettingsCompactCard(title: String, content: @Composable ColumnScope.() -> Unit) {
@@ -2344,10 +2480,6 @@ private fun formatTimerPanelDateTime(epochMillis: Long): String {
     return "${local.format(timerPanelDateFormatter)}\n${local.format(timerPanelTimeFormatter)}"
 }
 
-private fun FastSession.displayTargetSeconds(): Long {
-    return FastPlans.builtInById(planId)?.fastingMinutes?.times(60L) ?: targetSeconds
-}
-
 private fun formatTotalFastedHours(totalSeconds: Long): String {
     val hours = (totalSeconds / 3_600L).coerceAtLeast(0L)
     return when {
@@ -2546,3 +2678,8 @@ private val TealCard = Color(0xFF4F8E8E)
 private val GoldCard = Color(0xFFE2AE62)
 private val BlueCard = Color(0xFF2478A8)
 private val GreenCard = Color(0xFF5D9779)
+
+// History duration coding: green for 16h+, yellow for 10-16h, red below 10h.
+private val HistoryGreen = GreenCard
+private val HistoryYellow = GoldCard
+private val HistoryRed = Color(0xFFC44536)
