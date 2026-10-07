@@ -61,7 +61,7 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 ## Screens
 
 - Timer: active or idle state, plan chip, progress ring, phase label, elapsed seconds, remaining minutes, start/end action, and editable active fast times. Starting a fast opens a start dialog that accepts a backdated start time (quick 30 min/1 h/2 h/3 h shortcuts or a date-time wheel) before the fast is created; the post-start pencil edit remains available.
-- Fasts: built-in plans and custom duration picker.
+- Fasts: predefined plan picker (built-in plans plus a custom duration card). Choosing a plan only selects it and returns to the Timer tab; fasts are always started from Timer.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
 - History: active and completed sessions, manual fast logging, editing, and deletion.
 - Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.

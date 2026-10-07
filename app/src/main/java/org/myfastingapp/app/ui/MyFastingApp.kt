@@ -611,16 +611,17 @@ private fun FastsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SectionHeader(title = "Fasts", action = null)
+        Text(
+            "Tap a plan to use it, then start the fast from the Timer tab.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Muted,
+            modifier = Modifier.padding(start = 4.dp),
+        )
         CustomDurationCard(
             minutes = customMinutes,
             onMinutesChange = { customMinutes = it.coerceIn(30, 7 * 24 * 60) },
             onUse = {
                 viewModel.setCustomPlan(customMinutes)
-                onPlanChosen()
-            },
-            onStart = {
-                viewModel.setCustomPlan(customMinutes)
-                viewModel.startFast(FastPlans.resolve(FastPlans.CUSTOM_ID, customMinutes))
                 onPlanChosen()
             },
         )
@@ -634,10 +635,6 @@ private fun FastsScreen(
                         selected = uiState.settings.defaultPlanId == plan.id,
                         onSelect = {
                             viewModel.selectPlan(plan.id)
-                            onPlanChosen()
-                        },
-                        onStart = {
-                            viewModel.startFast(plan)
                             onPlanChosen()
                         },
                         modifier = Modifier.weight(1f),
@@ -656,7 +653,6 @@ private fun CustomDurationCard(
     minutes: Int,
     onMinutesChange: (Int) -> Unit,
     onUse: () -> Unit,
-    onStart: () -> Unit,
 ) {
     val hours = minutes / 60
     val minuteRemainder = minutes % 60
@@ -694,13 +690,8 @@ private fun CustomDurationCard(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onUse, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f).height(40.dp)) {
-                    Text("Use")
-                }
-                Button(onClick = onStart, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f).height(40.dp)) {
-                    Text("Start now")
-                }
+            Button(onClick = onUse, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().height(40.dp)) {
+                Text("Use this duration")
             }
         }
     }
@@ -766,35 +757,30 @@ private fun CompactPlanCard(
     color: Color,
     selected: Boolean,
     onSelect: () -> Unit,
-    onStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onSelect,
-        modifier = modifier.height(86.dp),
+        modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(18.dp),
         color = color,
         shadowElevation = if (selected) 6.dp else 2.dp,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
-                    Text(plan.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(TimerMath.formatMinutes(plan.fastingMinutes), color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelMedium)
-                }
-                Text(if (selected) "On" else "Start", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(plan.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(TimerMath.formatMinutes(plan.fastingMinutes), color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelMedium)
             }
-            Button(
-                onClick = onStart,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(30.dp),
-                shape = RoundedCornerShape(15.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = color),
-            ) {
-                Text("Start", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            }
+            Text(
+                text = if (selected) "On" else "Use",
+                color = Color.White.copy(alpha = if (selected) 1f else 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
