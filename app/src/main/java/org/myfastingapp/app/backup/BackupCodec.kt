@@ -9,6 +9,14 @@ import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
 import org.myfastingapp.app.domain.WeightUnit
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+private val backupFileNameFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")
+
+/** Default export name, e.g. myfastingapp-backup_20261007_0640.json */
+fun backupFileName(now: LocalDateTime = LocalDateTime.now()): String =
+    "myfastingapp-backup_${now.format(backupFileNameFormatter)}.json"
 
 class BackupCodec(
     private val json: Json = Json {

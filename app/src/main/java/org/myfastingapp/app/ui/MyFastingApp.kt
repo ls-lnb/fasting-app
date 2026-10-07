@@ -113,6 +113,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.myfastingapp.app.backup.backupFileName
 import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
@@ -2060,7 +2061,7 @@ private fun SettingsScreen(
             Text("JSON includes fasts, weights, target, unit, and app settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { exportJsonLauncher.launch("myfastingapp-backup.json") },
+                    onClick = { exportJsonLauncher.launch(backupFileName()) },
                     modifier = Modifier
                         .weight(1f)
                         .height(38.dp),
