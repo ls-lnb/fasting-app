@@ -115,6 +115,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.myfastingapp.app.backup.backupFileName
 import org.myfastingapp.app.domain.FastPlan
+import org.myfastingapp.app.domain.FastPlanOutcome
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhases
@@ -352,7 +353,7 @@ private fun TimerHero(
     onEnd: () -> Unit,
 ) {
     val elapsedMillis = session?.durationMillis(now) ?: 0L
-    val targetSeconds = session?.displayTargetSeconds() ?: selectedPlan.fastingMinutes * 60L
+    val targetSeconds = session?.plannedSeconds ?: selectedPlan.fastingMinutes * 60L
     val start = session?.startEpochMillis ?: now
     val progress = TimerMath.progress(start, targetSeconds, now)
     val phase = session?.let { FastingPhases.forElapsed(elapsedMillis) }
@@ -497,7 +498,7 @@ private fun FastTimingPanel(
     onEdit: () -> Unit,
 ) {
     val start = session?.startEpochMillis ?: now
-    val plannedEnd = start + (session?.displayTargetSeconds() ?: selectedPlan.fastingMinutes * 60L) * 1_000L
+    val plannedEnd = start + (session?.plannedSeconds ?: selectedPlan.fastingMinutes * 60L) * 1_000L
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -573,7 +574,7 @@ private fun TimingBlock(
 @Composable
 private fun SelectedPlanStrip(session: FastSession?, selectedPlan: FastPlan, onClick: () -> Unit) {
     val label = if (session != null) {
-        val target = TimerMath.formatMinutes((session.displayTargetSeconds() / 60L).toInt())
+        val target = TimerMath.formatMinutes((session.plannedSeconds / 60L).toInt())
         "${session.displayPlanName.uppercase()} FAST - $target"
     } else {
         "${selectedPlan.displayLabel.uppercase()} FAST - ${TimerMath.formatMinutes(selectedPlan.fastingMinutes)}"
@@ -1285,11 +1286,12 @@ private fun groupSessionsByMonth(sessions: List<FastSession>): Map<YearMonth, Li
 
 @Composable
 private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val durationMillis = session.durationMillis(session.endEpochMillis ?: System.currentTimeMillis())
-    val durationColor = when {
-        durationMillis >= 16L * 60L * 60L * 1_000L -> HistoryGreen
-        durationMillis >= 10L * 60L * 60L * 1_000L -> HistoryYellow
-        else -> HistoryRed
+    val now = System.currentTimeMillis()
+    val durationMillis = session.durationMillis(session.endEpochMillis ?: now)
+    val durationColor = when (session.planOutcome(now)) {
+        FastPlanOutcome.Met -> HistoryGreen
+        FastPlanOutcome.Near -> HistoryYellow
+        FastPlanOutcome.Short -> HistoryRed
     }
     Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
         Row(
@@ -1478,7 +1480,7 @@ private fun LogFastDialog(
 
 @Composable
 private fun EditFastDialog(session: FastSession, onDismiss: () -> Unit, onSave: (Long, Long) -> Unit) {
-    val targetSeconds = session.displayTargetSeconds()
+    val targetSeconds = session.plannedSeconds
     val plannedEnd = session.endEpochMillis ?: (session.startEpochMillis + targetSeconds * 1_000L)
     var startMillis by remember(session.id) { mutableLongStateOf(session.startEpochMillis) }
     var endMillis by remember(session.id) { mutableLongStateOf(plannedEnd) }
@@ -2476,10 +2478,6 @@ private fun formatFriendlyDateTime(epochMillis: Long): String {
 private fun formatTimerPanelDateTime(epochMillis: Long): String {
     val local = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
     return "${local.format(timerPanelDateFormatter)}\n${local.format(timerPanelTimeFormatter)}"
-}
-
-private fun FastSession.displayTargetSeconds(): Long {
-    return FastPlans.builtInById(planId)?.fastingMinutes?.times(60L) ?: targetSeconds
 }
 
 private fun formatTotalFastedHours(totalSeconds: Long): String {
