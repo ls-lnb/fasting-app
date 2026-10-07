@@ -49,15 +49,18 @@ class CustomSplitLabelTest {
     }
 
     @Test
-    fun completedCustomSessionUsesActualDuration() {
-        val session = session(
-            planId = FastPlans.CUSTOM_ID,
-            planName = "Custom",
-            targetSeconds = 16 * 3600L,
-            end = 15L * 3600_000L + 9L * 60_000L,
-        )
+    fun completedCustomSessionKeepsThePlannedLabel() {
+        val session = session(planId = FastPlans.CUSTOM_ID, planName = "Custom", targetSeconds = 16 * 3600L, end = 16 * 3600_000L)
 
-        assertEquals("15:9", session.displayPlanName)
+        assertEquals("16:8", session.displayPlanName)
+    }
+
+    @Test
+    fun extendedFastKeepsTheLabelItStartedWith() {
+        // A 16:8 plan run one hour longer still reads 16:8: the elapsed time is shown separately.
+        val session = session(planId = FastPlans.CUSTOM_ID, planName = "Custom", targetSeconds = 16 * 3600L, end = 17 * 3600_000L)
+
+        assertEquals("16:8", session.displayPlanName)
     }
 
     @Test

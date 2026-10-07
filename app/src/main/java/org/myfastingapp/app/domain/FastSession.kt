@@ -20,16 +20,11 @@ data class FastSession(
     }
 
     /**
-     * Display name for the session. Custom fasts show their duration split
-     * (e.g. "15:9") derived from the actual end time - or the planned target
-     * while the fast is still active - instead of "Custom".
+     * Display name for the session. Custom fasts show the duration split of the
+     * plan they began with (e.g. "15:9") instead of "Custom"; a fast that ran
+     * longer than planned keeps its planned label, since the actual elapsed time
+     * is shown separately.
      */
     val displayPlanName: String
-        get() = when {
-            planId != FastPlans.CUSTOM_ID -> planName
-            isActive -> customSplitLabel(targetMinutes.toLong())
-            else -> customSplitLabel(
-                ((endEpochMillis ?: startEpochMillis) - startEpochMillis).coerceAtLeast(0L) / 60_000L,
-            )
-        }
+        get() = if (planId == FastPlans.CUSTOM_ID) customSplitLabel(targetMinutes.toLong()) else planName
 }
