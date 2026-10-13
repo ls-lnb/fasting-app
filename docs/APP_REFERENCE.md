@@ -72,7 +72,7 @@ All other app-owned screens are designed to fit without vertical scrolling on th
 
 ## Automatic Backup
 
-Automatic backups are opt-in in Settings: a folder is chosen through the Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE`), and the app keeps a persisted read/write grant for it, so no storage permission is requested. A `WorkManager` periodic job aims to run daily at 03:00 local time (the system may defer it, and the same job survives reboots), writing one JSON file per day named `myfastingapp-autobackup_<yyyy-MM-dd>.json`; re-running on the same day replaces that day's file.
+Automatic backups are opt-in in Settings: a folder is chosen through the Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE`), and the app keeps a persisted read/write grant for it, so no storage permission is requested. A single inexact `AlarmManager` alarm aims to run daily at 03:00 local time (the system may defer it; the alarm is re-armed after each run and on boot), writing one JSON file per day named `myfastingapp-autobackup_<yyyy-MM-dd>.json`; re-running on the same day replaces that day's file. No work library, wake lock, or exact-alarm permission is used.
 
 Retention is counted in days (3, 7, 14, or 30, default 7) and applies only to automatic files: a run deletes automatic backups dated before `today - (retention - 1)`. Manual exports use a different name shape (`myfastingapp-backup_<yyyyMMdd_HHmm>.json`) and are never deleted by retention, nor are unrelated files in the folder. Turning the setting on, or choosing a folder, triggers an immediate run, and the result (success or failure with its time) is shown under the retention chips.
 

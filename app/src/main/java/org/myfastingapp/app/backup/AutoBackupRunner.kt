@@ -2,26 +2,21 @@ package org.myfastingapp.app.backup
 
 import android.content.Context
 import android.net.Uri
-import androidx.work.CoroutineWorker
-import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
 import org.myfastingapp.app.MyFastingAppApplication
 import org.myfastingapp.app.domain.AutoBackup
 import java.time.LocalDate
 
 /**
- * Writes one JSON backup per day into the folder chosen in settings, then deletes
- * automatic backups older than the retention window. Manual exports are never touched.
+ * Writes today's automatic backup into the chosen folder and deletes automatic
+ * backups outside the retention window. Manual exports are never touched.
  */
-class AutoBackupWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
-        val container = (applicationContext as? MyFastingAppApplication)?.container ?: return Result.success()
+class AutoBackupRunner(private val context: Context) {
+    suspend fun run(): Boolean {
+        val container = (context.applicationContext as? MyFastingAppApplication)?.container ?: return false
         val settings = container.settingsStore.settings.first()
         val treeUri = settings.autoBackupTreeUri
-        if (!settings.autoBackupEnabled || treeUri == null) return Result.success()
+        if (!settings.autoBackupEnabled || treeUri == null) return false
 
         val now = System.currentTimeMillis()
         val succeeded = runCatching {
@@ -41,6 +36,6 @@ class AutoBackupWorker(
         }.isSuccess
 
         container.settingsStore.setAutoBackupLastRun(now, succeeded)
-        return Result.success()
+        return succeeded
     }
 }
