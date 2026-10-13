@@ -10,6 +10,13 @@ data class UserSettings(
     val milestoneAlertsEnabled: Boolean = true,
     val milestonePercents: Set<Int> = MILESTONE_OPTIONS.toSet(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val autoBackupEnabled: Boolean = false,
+    val autoBackupRetentionDays: Int = AutoBackup.DEFAULT_RETENTION_DAYS,
+    /** SAF tree the daily backup is written to; device-specific, so never included in backups. */
+    val autoBackupTreeUri: String? = null,
+    val autoBackupFolderName: String? = null,
+    val autoBackupLastRunEpochMillis: Long? = null,
+    val autoBackupLastSucceeded: Boolean = true,
 ) {
     val defaultPlan: FastPlan
         get() = FastPlans.resolve(defaultPlanId, customFastingMinutes)

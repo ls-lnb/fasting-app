@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
                     repository = container.repository,
                     settingsStore = container.settingsStore,
                     reminderScheduler = container.reminderScheduler,
+                    autoBackupScheduler = container.autoBackupScheduler,
                 ),
             )
             refreshExternalSurfaces = viewModel::refreshExternalSurfaces

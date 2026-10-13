@@ -2,6 +2,7 @@ package org.myfastingapp.app.backup
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.ThemeMode
@@ -43,6 +44,8 @@ class BackupCodec(
                 milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
                 milestonePercents = settings.milestonePercents.sorted(),
                 themeMode = settings.themeMode.storageValue,
+                autoBackupEnabled = settings.autoBackupEnabled,
+                autoBackupRetentionDays = AutoBackup.coerceRetentionDays(settings.autoBackupRetentionDays),
             ),
             sessions = sessions.sortedBy { it.startEpochMillis }.map { it.toBackup() },
             weights = weights.sortedBy { it.recordedEpochMillis }.map { it.toBackup() },
@@ -67,6 +70,8 @@ class BackupCodec(
                 .filter { it in UserSettings.MILESTONE_OPTIONS }
                 .toSet(),
             themeMode = ThemeMode.fromStorage(envelope.settings.themeMode),
+            autoBackupEnabled = envelope.settings.autoBackupEnabled,
+            autoBackupRetentionDays = AutoBackup.coerceRetentionDays(envelope.settings.autoBackupRetentionDays),
         )
         val sessions = envelope.sessions.map { it.validated() }
         val weights = envelope.weights.map { it.validated() }
@@ -152,6 +157,8 @@ data class SettingsBackup(
     val milestoneAlertsEnabled: Boolean = true,
     val milestonePercents: List<Int> = UserSettings.MILESTONE_OPTIONS,
     val themeMode: String = ThemeMode.SYSTEM.storageValue,
+    val autoBackupEnabled: Boolean = false,
+    val autoBackupRetentionDays: Int = AutoBackup.DEFAULT_RETENTION_DAYS,
 )
 
 @Serializable

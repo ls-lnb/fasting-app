@@ -4,6 +4,11 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.core.content.getSystemService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MyFastingAppApplication : Application() {
     val container: MyFastingAppContainer by lazy { MyFastingAppContainer(this) }
@@ -11,6 +16,15 @@ class MyFastingAppApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        syncAutoBackupSchedule()
+    }
+
+    /** WorkManager persists work across reboots; this keeps it in step with settings. */
+    private fun syncAutoBackupSchedule() {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            val settings = container.settingsStore.settings.first()
+            container.autoBackupScheduler.sync(settings.autoBackupEnabled && settings.autoBackupTreeUri != null)
+        }
     }
 
     private fun createNotificationChannel() {

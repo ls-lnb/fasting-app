@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -118,12 +119,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.documentfile.provider.DocumentFile
 import org.myfastingapp.app.backup.backupFileName
 import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastPlanOutcome
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhase
+import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastingPhases
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.TimerMath
@@ -2048,6 +2051,20 @@ private fun SettingsScreen(
             }
         }
     }
+    var enableAutoBackupOnFolderPick by remember { mutableStateOf(false) }
+    val autoBackupFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            val folderName = runCatching { DocumentFile.fromTreeUri(context, uri)?.name }.getOrNull()
+            viewModel.setAutoBackupFolder(uri.toString(), folderName, enable = enableAutoBackupOnFolderPick)
+        }
+        enableAutoBackupOnFolderPick = false
+    }
 
     Column(
         modifier = Modifier
@@ -2261,28 +2278,97 @@ private fun SettingsScreen(
         }
         SettingsCompactCard(title = "Backup") {
             Text("JSON includes fasts, weights, target, unit, and app settings.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { exportJsonLauncher.launch(backupFileName()) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp),
-                    shape = RoundedCornerShape(19.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                ) {
-                    Text("Export", style = MaterialTheme.typography.labelLarge)
+            SettingsActionRow(
+                title = "Export backup",
+                subtitle = "Save everything to a JSON file",
+                onClick = { exportJsonLauncher.launch(backupFileName()) },
+            )
+            SettingsActionRow(
+                title = "Import backup",
+                subtitle = "Restore from a JSON backup file",
+                onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
+            )
+        }
+        SettingsCompactCard(title = "Automatic backup") {
+            Text(
+                "Writes one JSON backup a day to a folder you choose. Old daily files are cleaned up; files you exported yourself are never deleted.",
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Daily backup", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (uiState.settings.autoBackupTreeUri == null) {
+                            "No folder chosen yet"
+                        } else {
+                            "Saved to ${uiState.settings.autoBackupFolderName ?: "chosen folder"}"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-                OutlinedButton(
-                    onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp),
-                    shape = RoundedCornerShape(19.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                ) {
-                    Text("Import", style = MaterialTheme.typography.labelLarge)
+                Switch(
+                    checked = uiState.settings.autoBackupEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled && uiState.settings.autoBackupTreeUri == null) {
+                            enableAutoBackupOnFolderPick = true
+                            autoBackupFolderLauncher.launch(null)
+                        } else {
+                            viewModel.setAutoBackupEnabled(enabled)
+                        }
+                    },
+                    colors = settingsSwitchColors(),
+                )
+            }
+            OutlinedButton(
+                onClick = {
+                    enableAutoBackupOnFolderPick = false
+                    autoBackupFolderLauncher.launch(null)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp),
+                shape = RoundedCornerShape(19.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            ) {
+                Text(
+                    if (uiState.settings.autoBackupTreeUri == null) "Choose backup folder" else "Change backup folder",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Keep last", color = Ink, fontWeight = FontWeight.SemiBold)
+                AutoBackup.RETENTION_OPTIONS.forEach { days ->
+                    FilterChip(
+                        selected = uiState.settings.autoBackupRetentionDays == days,
+                        onClick = { viewModel.setAutoBackupRetentionDays(days) },
+                        label = {
+                            Text(
+                                "$days d",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Wine,
+                            selectedLabelColor = Color.White,
+                        ),
+                    )
                 }
             }
+            val lastRun = uiState.settings.autoBackupLastRunEpochMillis
+            Text(
+                when {
+                    lastRun == null -> "Only automatic files fall under this window."
+                    uiState.settings.autoBackupLastSucceeded -> "Last automatic backup: ${formatFriendlyDateTime(lastRun)}"
+                    else -> "Last attempt failed (${formatFriendlyDateTime(lastRun)}). Check the folder still exists."
+                },
+                color = if (lastRun != null && !uiState.settings.autoBackupLastSucceeded) MaterialTheme.colorScheme.error else Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+            )
         }
         SettingsCompactCard(title = "Local data") {
             Text("MyFastingApp only stores data on this device.", color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
@@ -2375,6 +2461,35 @@ private fun SettingsCompactCard(title: String, content: @Composable ColumnScope.
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
             content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsActionRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = Cream.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, StatPillBorder),
+        shadowElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Muted, maxLines = 1)
+            }
+            Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
         }
     }
 }
