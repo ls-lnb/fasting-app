@@ -60,7 +60,7 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 
 ## Screens
 
-- Timer: active or idle state, plan chip, progress ring, phase label, elapsed seconds, remaining minutes, start/end action, and editable active fast times. Starting a fast opens a start dialog that accepts a backdated start time (quick 30 min/1 h/2 h/3 h shortcuts or a date-time wheel) before the fast is created; the post-start pencil edit remains available.
+- Timer: active or idle state, plan chip, progress ring, phase label, elapsed seconds, remaining minutes, start/end action, and editable active fast times. A stage bar under the ring splits the window into the fasting phases in proportion to the hours each covers: idle it previews the split of the remembered plan ("3 stages over 16h"), and while a fast runs passed stages fill, the current one fills part way, and the caption names the next stage. Once the fast runs past its planned window the bar re-bases to the stage in progress (instead of sitting full), and past 24h it draws the final stage up to the next whole hour. Tapping the bar opens a stages view listing every phase from 0-4h to 24h+ with its hours, a short description, and the phase in progress (the full list shows regardless of the chosen duration). Starting a fast opens a start dialog that accepts a backdated start time (quick 30 min/1 h/2 h/3 h shortcuts or a date-time wheel) before the fast is created; the post-start pencil edit remains available.
 - Fasts: predefined plan picker (built-in plans plus a custom duration card). Choosing a plan only selects it and returns to the Timer tab; fasts are always started from Timer.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
 - History: active and completed sessions grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row's duration is coloured by how the fast compared with the plan it began with: green at 100% of the plan, yellow from 85%, and red below that.
@@ -80,7 +80,7 @@ The main timer and notification use short, simple phase labels:
 - 18-24h: Fat burning
 - 24h+: Extended fast
 
-The language is intentionally modest and avoids medical claims. It describes broad energy-use changes, not guaranteed personal outcomes.
+The language is intentionally modest and avoids medical claims. It describes broad energy-use changes, not guaranteed personal outcomes. Each phase also carries a longer write-up for the in-app stages view (opened from the timer's stage bar).
 
 ## Backup Format
 
