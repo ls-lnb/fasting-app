@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,6 +49,7 @@ import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -101,7 +104,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -118,6 +123,7 @@ import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastPlanOutcome
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.FastingPhase
 import org.myfastingapp.app.domain.FastingPhases
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.TimerMath
@@ -208,6 +214,7 @@ private fun TimerScreen(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var editing by remember { mutableStateOf<FastSession?>(null) }
     var starting by remember { mutableStateOf<FastPlan?>(null) }
+    var showStages by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(uiState.activeSession?.id, lifecycleOwner) {
@@ -248,6 +255,7 @@ private fun TimerScreen(
             now = now,
             onStart = { starting = uiState.selectedPlan },
             onEnd = viewModel::endFast,
+            onOpenStages = { showStages = true },
         )
         TimerStatsStrip(uiState = uiState, now = now)
         FastTimingPanel(
@@ -266,6 +274,14 @@ private fun TimerScreen(
                 viewModel.editFast(session.id, start, end)
                 editing = null
             },
+        )
+    }
+
+    if (showStages) {
+        FastingStagesInfoDialog(
+            currentPhaseTitle = uiState.activeSession
+                ?.let { FastingPhases.forElapsed(it.durationMillis(System.currentTimeMillis())).title },
+            onDismiss = { showStages = false },
         )
     }
 
@@ -306,6 +322,179 @@ private fun TimerStatsStrip(uiState: MyFastingAppUiState, now: Long) {
             modifier = Modifier.weight(1f),
         )
     }
+}
+
+@Composable
+private fun FastingStageBar(
+    plannedSeconds: Long,
+    elapsedMillis: Long,
+    currentPhase: FastingPhase?,
+    sessionActive: Boolean,
+    onOpenInfo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val windowSeconds = if (sessionActive) {
+        FastingPhases.stageBarWindowSeconds(plannedSeconds, elapsedMillis)
+    } else {
+        plannedSeconds
+    }
+    val stages = remember(windowSeconds) { FastingPhases.stagesForWindow(windowSeconds) }
+    if (stages.isEmpty()) return
+    val elapsedHours = elapsedMillis / 3_600_000.0
+    val currentStage = if (sessionActive) stages.firstOrNull { elapsedHours < it.endHour } else null
+    val caption = if (!sessionActive) {
+        val window = TimerMath.formatMinutes((windowSeconds / 60L).toInt())
+        "${stages.size} stages over $window"
+    } else {
+        FastingPhases.nextForElapsed(elapsedMillis)?.let { "Next: ${it.title}" } ?: "Final stage"
+    }
+    val barColor = currentPhase?.let { Color(it.colorArgb) } ?: Brand
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onOpenInfo)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            stages.forEach { stage ->
+                val color = Color(stage.phase.colorArgb)
+                val fill = stage.fillAt(elapsedMillis)
+                Box(
+                    modifier = Modifier
+                        .weight(stage.hours.toFloat())
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(color.copy(alpha = 0.22f)),
+                ) {
+                    if (fill > 0.001f) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fill)
+                                .fillMaxHeight()
+                                .background(color),
+                        )
+                    }
+                }
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            stages.forEach { stage ->
+                val isCurrent = stage === currentStage
+                Text(
+                    text = stage.label,
+                    modifier = Modifier.weight(stage.hours.toFloat()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isCurrent) Ink else Muted,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = caption,
+                style = MaterialTheme.typography.labelSmall,
+                color = Muted,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(5.dp))
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = "Fasting stages",
+                tint = barColor,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FastingStagesInfoDialog(currentPhaseTitle: String?, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = { Text("Fasting stages", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FastingPhases.all.forEach { phase ->
+                    val color = Color(phase.colorArgb)
+                    val isCurrent = phase.title == currentPhaseTitle
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isCurrent) TintSurface else CardSurface,
+                        border = BorderStroke(1.dp, if (isCurrent) color.copy(alpha = 0.5f) else StatPillBorder),
+                        shadowElevation = 0.dp,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(color),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    phase.title,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Ink,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    phase.windowLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = color,
+                                )
+                                if (isCurrent) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.16f)) {
+                                        Text(
+                                            "Now",
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = color,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                phase.detail,
+                                modifier = Modifier.padding(start = 16.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -351,6 +540,7 @@ private fun TimerHero(
     now: Long,
     onStart: () -> Unit,
     onEnd: () -> Unit,
+    onOpenStages: () -> Unit,
 ) {
     val elapsedMillis = session?.durationMillis(now) ?: 0L
     val targetSeconds = session?.plannedSeconds ?: selectedPlan.fastingMinutes * 60L
@@ -422,6 +612,14 @@ private fun TimerHero(
                 )
             }
         }
+
+        FastingStageBar(
+            plannedSeconds = targetSeconds,
+            elapsedMillis = elapsedMillis,
+            currentPhase = phase,
+            sessionActive = session != null,
+            onOpenInfo = onOpenStages,
+        )
 
         Button(
             onClick = if (session == null) onStart else onEnd,
