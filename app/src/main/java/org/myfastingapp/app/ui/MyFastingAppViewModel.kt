@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import org.myfastingapp.app.MyFastingAppApplication
 import org.myfastingapp.app.data.FastRepository
 import org.myfastingapp.app.data.SettingsStore
+import org.myfastingapp.app.backup.AutoBackupScheduler
 import org.myfastingapp.app.domain.FastPlan
 import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastStats
@@ -43,6 +44,7 @@ class MyFastingAppViewModel(
     private val repository: FastRepository,
     private val settingsStore: SettingsStore,
     private val reminderScheduler: FastReminderScheduler,
+    private val autoBackupScheduler: AutoBackupScheduler,
 ) : ViewModel() {
     private val _messages = MutableSharedFlow<String>()
     val messages: SharedFlow<String> = _messages
@@ -197,6 +199,53 @@ class MyFastingAppViewModel(
         }
     }
 
+    fun setAutoBackupEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val settings = settingsStore.settings.first()
+            settingsStore.setAutoBackup(
+                enabled = enabled,
+                treeUri = settings.autoBackupTreeUri,
+                folderName = settings.autoBackupFolderName,
+                retentionDays = settings.autoBackupRetentionDays,
+            )
+            autoBackupScheduler.sync(enabled && settings.autoBackupTreeUri != null)
+            if (enabled && settings.autoBackupTreeUri != null) autoBackupScheduler.runNow()
+        }
+    }
+
+    fun setAutoBackupFolder(treeUri: String, folderName: String?, enable: Boolean) {
+        viewModelScope.launch {
+            val settings = settingsStore.settings.first()
+            settingsStore.setAutoBackup(
+                enabled = enable,
+                treeUri = treeUri,
+                folderName = folderName,
+                retentionDays = settings.autoBackupRetentionDays,
+            )
+            autoBackupScheduler.sync(enable)
+            if (enable) {
+                autoBackupScheduler.runNow()
+                showMessage("Daily backup on. First backup saved to the chosen folder.")
+            } else {
+                showMessage("Backup folder set.")
+            }
+        }
+    }
+
+    fun setAutoBackupRetentionDays(days: Int) {
+        viewModelScope.launch {
+            val settings = settingsStore.settings.first()
+            settingsStore.setAutoBackup(
+                enabled = settings.autoBackupEnabled,
+                treeUri = settings.autoBackupTreeUri,
+                folderName = settings.autoBackupFolderName,
+                retentionDays = days,
+            )
+            // Prune straight away so a shorter window takes effect now.
+            if (settings.autoBackupEnabled && settings.autoBackupTreeUri != null) autoBackupScheduler.runNow()
+        }
+    }
+
     fun deleteAllLocalData() {
         viewModelScope.launch {
             runCatching {
@@ -226,10 +275,11 @@ class MyFastingAppViewModel(
             repository: FastRepository,
             settingsStore: SettingsStore,
             reminderScheduler: FastReminderScheduler,
+            autoBackupScheduler: AutoBackupScheduler,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MyFastingAppViewModel(application, repository, settingsStore, reminderScheduler) as T
+                return MyFastingAppViewModel(application, repository, settingsStore, reminderScheduler, autoBackupScheduler) as T
             }
         }
     }

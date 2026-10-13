@@ -64,11 +64,17 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - Fasts: predefined plan picker (built-in plans plus a custom duration card). Choosing a plan only selects it and returns to the Timer tab; fasts are always started from Timer.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
 - History: active and completed sessions grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row's duration is coloured by how the fast compared with the plan it began with: green at 100% of the plan, yellow from 85%, and red below that.
-- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, backup/import/export, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, manual backup export/import, automatic daily backups to a chosen folder with an age-based retention window, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
 
 The dark theme uses a dedicated palette (deep navy surfaces, brightened brand indigo, light text) rather than an inverted light palette. System bar colors and icon contrast follow the in-app theme; on API 35+ the platform's enforced edge-to-edge behavior takes precedence. The home-screen widget keeps its wallpaper-agnostic design in both themes.
 
 All other app-owned screens are designed to fit without vertical scrolling on the target phone viewport used for release testing.
+
+## Automatic Backup
+
+Automatic backups are opt-in in Settings: a folder is chosen through the Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE`), and the app keeps a persisted read/write grant for it, so no storage permission is requested. A `WorkManager` periodic job aims to run daily at 03:00 local time (the system may defer it, and the same job survives reboots), writing one JSON file per day named `myfastingapp-autobackup_<yyyy-MM-dd>.json`; re-running on the same day replaces that day's file.
+
+Retention is counted in days (3, 7, 14, or 30, default 7) and applies only to automatic files: a run deletes automatic backups dated before `today - (retention - 1)`. Manual exports use a different name shape (`myfastingapp-backup_<yyyyMMdd_HHmm>.json`) and are never deleted by retention, nor are unrelated files in the folder. Turning the setting on, or choosing a folder, triggers an immediate run, and the result (success or failure with its time) is shown under the retention chips.
 
 ## Fasting Phases
 
@@ -90,9 +96,11 @@ The backup envelope includes:
 
 - `schemaVersion`
 - `exportedAtEpochMillis`
-- `settings` (plan, reminder, milestone alert, theme mode, weight unit, and target weight fields; new fields have defaults so older schema-3 backups still import)
+- `settings` (plan, reminder, milestone alert, theme mode, weight unit, target weight, and automatic-backup enabled/retention fields; new fields have defaults so older schema-3 backups still import)
 - `sessions`
 - `weights`
+
+The automatic-backup folder (a device-specific SAF tree URI) is deliberately not part of a backup: it is re-chosen per device. Imports keep the folder already configured on the device.
 
 Imports validate schema version, one-active-fast rule, session duration bounds, end-after-start, no overlaps, weight range, and timestamp sanity. Import replaces local sessions, weights, and settings.
 

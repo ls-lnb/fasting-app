@@ -2,6 +2,8 @@ package org.myfastingapp.app
 
 import android.content.Context
 import androidx.room.Room
+import org.myfastingapp.app.backup.AutoBackupScheduler
+import org.myfastingapp.app.backup.AutoBackupStore
 import org.myfastingapp.app.backup.BackupCodec
 import org.myfastingapp.app.data.FastRepository
 import org.myfastingapp.app.data.MyFastingAppDatabase
@@ -22,4 +24,6 @@ class MyFastingAppContainer(context: Context) {
     val backupCodec = BackupCodec()
     val repository = FastRepository(database.fastSessionDao(), database.weightEntryDao(), settingsStore, backupCodec)
     val reminderScheduler = FastReminderScheduler(appContext)
+    val autoBackupStore = AutoBackupStore(appContext)
+    val autoBackupScheduler = AutoBackupScheduler(appContext)
 }
