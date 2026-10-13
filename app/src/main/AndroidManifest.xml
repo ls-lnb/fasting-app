@@ -38,6 +38,10 @@
         </receiver>
 
         <receiver
+            android:name=".backup.AutoBackupReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".notify.ReminderReceiver"
             android:exported="false" />
 

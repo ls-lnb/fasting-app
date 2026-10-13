@@ -19,7 +19,7 @@ class MyFastingAppApplication : Application() {
         syncAutoBackupSchedule()
     }
 
-    /** WorkManager persists work across reboots; this keeps it in step with settings. */
+    /** Re-arms the daily backup alarm; the alarm is also re-armed on boot and after each run. */
     private fun syncAutoBackupSchedule() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             val settings = container.settingsStore.settings.first()

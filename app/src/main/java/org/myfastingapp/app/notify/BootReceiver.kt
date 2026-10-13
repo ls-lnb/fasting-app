@@ -22,6 +22,9 @@ class BootReceiver : BroadcastReceiver() {
                 val active = app.container.repository.activeSession.first()
                 val settings = app.container.settingsStore.settings.first()
                 app.container.reminderScheduler.schedule(active, settings)
+                app.container.autoBackupScheduler.sync(
+                    settings.autoBackupEnabled && settings.autoBackupTreeUri != null,
+                )
                 MyFastingAppWidgetProvider.updateWidgets(context)
             } finally {
                 pending.finish()

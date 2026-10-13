@@ -209,7 +209,7 @@ class MyFastingAppViewModel(
                 retentionDays = settings.autoBackupRetentionDays,
             )
             autoBackupScheduler.sync(enabled && settings.autoBackupTreeUri != null)
-            if (enabled && settings.autoBackupTreeUri != null) autoBackupScheduler.runNow()
+            if (enabled && settings.autoBackupTreeUri != null) application.container.autoBackupRunner.run()
         }
     }
 
@@ -224,7 +224,7 @@ class MyFastingAppViewModel(
             )
             autoBackupScheduler.sync(enable)
             if (enable) {
-                autoBackupScheduler.runNow()
+                application.container.autoBackupRunner.run()
                 showMessage("Daily backup on. First backup saved to the chosen folder.")
             } else {
                 showMessage("Backup folder set.")
@@ -242,7 +242,7 @@ class MyFastingAppViewModel(
                 retentionDays = days,
             )
             // Prune straight away so a shorter window takes effect now.
-            if (settings.autoBackupEnabled && settings.autoBackupTreeUri != null) autoBackupScheduler.runNow()
+            if (settings.autoBackupEnabled && settings.autoBackupTreeUri != null) application.container.autoBackupRunner.run()
         }
     }
 
