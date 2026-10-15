@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +93,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -118,6 +120,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.documentfile.provider.DocumentFile
 import org.myfastingapp.app.backup.backupFileName
@@ -128,6 +131,9 @@ import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhase
 import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastingPhases
+import org.myfastingapp.app.domain.StreakCalendarBuilder
+import org.myfastingapp.app.domain.StreakDay
+import org.myfastingapp.app.domain.StreakMonthLabel
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.TimerMath
 import org.myfastingapp.app.domain.UserSettings
@@ -1412,6 +1418,7 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                     Text("${uiState.stats.currentStreakDays}d streak", color = Brand, fontWeight = FontWeight.Bold)
                 }
             }
+            StreakCalendarCard(sessions = uiState.sessions)
             sessionsByMonth.forEach { (month, monthSessions) ->
                 Text(
                     text = month.format(monthYearFormatter),
@@ -1483,6 +1490,155 @@ private fun groupSessionsByMonth(sessions: List<FastSession>): Map<YearMonth, Li
     return sessions.groupBy { session ->
         YearMonth.from(Instant.ofEpochMilli(session.startEpochMillis).atZone(zone).toLocalDate())
     }
+}
+
+// Streak calendar cell metrics: a 12dp square with a 3dp gutter, GitHub style.
+private val StreakCell = 12.dp
+private val StreakCellGap = 3.dp
+private val StreakColumnWidth = StreakCell + StreakCellGap
+private val StreakMonthLabelHeight = 18.dp
+private val StreakWeekdayWidth = 30.dp
+
+/**
+ * GitHub-style streak calendar for the top of the History tab: the last 12 rolling
+ * months in week columns, horizontally scrollable, one purple shade per fast outcome
+ * (plan met darkest/brightest, then near, then short) and blank days with no record.
+ */
+@Composable
+private fun StreakCalendarCard(sessions: List<FastSession>) {
+    val grid = remember(sessions) { StreakCalendarBuilder.build(sessions) }
+    val scrollState = rememberScrollState()
+
+    // Open on the recent months; today sits at the right edge of the grid.
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.maxValue }.first { it > 0 }.let { scrollState.scrollTo(it) }
+    }
+
+    Surface(shape = RoundedCornerShape(18.dp), color = CardSurface, shadowElevation = 1.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.width(StreakWeekdayWidth)) {
+                    Spacer(Modifier.height(StreakMonthLabelHeight))
+                    StreakWeekdayLabels()
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(scrollState),
+                ) {
+                    Column {
+                        StreakMonthRow(grid.monthLabels)
+                        StreakWeekColumns(grid.weeks)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            StreakLegend()
+        }
+    }
+}
+
+/** Mon/Wed/Fri down the left edge, aligned with the grid rows it sits beside. */
+@Composable
+private fun StreakWeekdayLabels() {
+    listOf("Mon", "", "Wed", "", "Fri", "", "").forEach { label ->
+        Box(
+            modifier = Modifier.height(StreakColumnWidth),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (label.isNotEmpty()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+    }
+}
+
+/** Month captions, each one starting over the column its month opens in. */
+@Composable
+private fun StreakMonthRow(labels: List<StreakMonthLabel>) {
+    Row(modifier = Modifier.height(StreakMonthLabelHeight)) {
+        labels.forEach { label ->
+            Box(
+                modifier = Modifier.width(StreakColumnWidth * label.columnsWide.toFloat()),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    text = label.text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakWeekColumns(weeks: List<List<StreakDay>>) {
+    Row {
+        weeks.forEach { week ->
+            Column(modifier = Modifier.width(StreakColumnWidth)) {
+                week.forEach { day -> StreakDayCell(day) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakDayCell(day: StreakDay) {
+    val color = when (day.outcome) {
+        FastPlanOutcome.Met -> StreakMet
+        FastPlanOutcome.Near -> StreakNear
+        FastPlanOutcome.Short -> StreakShort
+        null -> StreakEmpty
+    }
+    Box(
+        modifier = Modifier
+            .padding(bottom = StreakCellGap)
+            .size(StreakCell)
+            .background(color, RoundedCornerShape(3.dp)),
+    )
+}
+
+/** "Less [swatches] More" ramp under the grid, matching the GitHub legend. */
+@Composable
+private fun StreakLegend() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Less", style = MaterialTheme.typography.labelSmall, color = Muted)
+        Spacer(Modifier.width(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(StreakCellGap)) {
+            StreakSwatch(StreakEmpty)
+            StreakSwatch(StreakShort)
+            StreakSwatch(StreakNear)
+            StreakSwatch(StreakMet)
+        }
+        Spacer(Modifier.width(6.dp))
+        Text("More", style = MaterialTheme.typography.labelSmall, color = Muted)
+    }
+}
+
+@Composable
+private fun StreakSwatch(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(StreakCell)
+            .background(color, RoundedCornerShape(3.dp)),
+    )
 }
 
 @Composable
@@ -2896,6 +3052,10 @@ private data class AppPalette(
     val gridLine: Color,
     val switchTrackOff: Color,
     val error: Color,
+    val streakEmpty: Color,
+    val streakShort: Color,
+    val streakNear: Color,
+    val streakMet: Color,
 )
 
 private val LightPalette = AppPalette(
@@ -2924,6 +3084,11 @@ private val LightPalette = AppPalette(
     gridLine = Color(0xFFE9DDD7),
     switchTrackOff = Color(0xFFE8E2DC),
     error = Color(0xFFB3261E),
+    // Streak calendar ramp: intensity grows as the purple darkens.
+    streakEmpty = Color(0xFFEDE8E1),
+    streakShort = Color(0xFFC4C0F8),
+    streakNear = Color(0xFF6D68F2),
+    streakMet = Color(0xFF3230B8),
 )
 
 private val DarkPalette = AppPalette(
@@ -2952,6 +3117,11 @@ private val DarkPalette = AppPalette(
     gridLine = Color(0xFF2C333F),
     switchTrackOff = Color(0xFF39414F),
     error = Color(0xFFFFB4AB),
+    // Streak calendar ramp: intensity grows as the purple brightens on dark.
+    streakEmpty = Color(0xFF242A35),
+    streakShort = Color(0xFF4644A6),
+    streakNear = Color(0xFF6E6AF0),
+    streakMet = Color(0xFF9A96FF),
 )
 
 private val LocalAppPalette = compositionLocalOf { LightPalette }
@@ -2983,6 +3153,10 @@ private val GraphSurface: Color @Composable get() = LocalAppPalette.current.grap
 private val GridLine: Color @Composable get() = LocalAppPalette.current.gridLine
 private val SwitchTrackOff: Color @Composable get() = LocalAppPalette.current.switchTrackOff
 private val ErrorRed: Color @Composable get() = LocalAppPalette.current.error
+private val StreakEmpty: Color @Composable get() = LocalAppPalette.current.streakEmpty
+private val StreakShort: Color @Composable get() = LocalAppPalette.current.streakShort
+private val StreakNear: Color @Composable get() = LocalAppPalette.current.streakNear
+private val StreakMet: Color @Composable get() = LocalAppPalette.current.streakMet
 
 // Accent colors are intentionally identical in both themes.
 private val PurpleCard = Color(0xFF6B5A95)
