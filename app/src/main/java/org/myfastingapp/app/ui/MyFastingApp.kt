@@ -120,6 +120,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.documentfile.provider.DocumentFile
@@ -131,6 +132,7 @@ import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhase
 import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastingPhases
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.StreakCalendarBuilder
 import org.myfastingapp.app.domain.StreakDay
 import org.myfastingapp.app.domain.StreakMonthLabel
@@ -146,6 +148,7 @@ import org.myfastingapp.app.domain.kgToLb
 import org.myfastingapp.app.domain.lbToKg
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -160,6 +163,14 @@ fun MyFastingApp(viewModel: MyFastingAppViewModel) {
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedTab by rememberSaveable { mutableStateOf(AppTab.Timer) }
+
+    // A notification tap can ask for a tab (the daily fast reminder opens Timer).
+    LaunchedEffect(viewModel) {
+        viewModel.pendingTab.filterNotNull().collect { tab ->
+            selectedTab = tab
+            viewModel.consumePendingTab()
+        }
+    }
 
     LaunchedEffect(viewModel, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -2055,6 +2066,86 @@ private fun DateTimeWheelSheet(
     }
 }
 
+/** Hour/minute wheels for the daily fast reminder, matching the edit sheets. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimeSheet(
+    hour: Int,
+    minute: Int,
+    onDismiss: () -> Unit,
+    onPicked: (Int, Int) -> Unit,
+) {
+    var selectedHour by remember(hour, minute) { mutableStateOf(hour12(hour)) }
+    var selectedMinute by remember(hour, minute) { mutableStateOf(minute) }
+    var selectedPeriod by remember(hour, minute) { mutableStateOf(if (hour < 12) 0 else 1) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = null,
+        containerColor = CardSurface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Daily reminder time",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink,
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close", tint = Slate)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                WheelPicker(
+                    values = HOURS_12,
+                    selectedIndex = selectedHour - 1,
+                    onSelected = { selectedHour = it + 1 },
+                    modifier = Modifier.weight(1f),
+                )
+                WheelPicker(
+                    values = MINUTES,
+                    selectedIndex = selectedMinute,
+                    onSelected = { selectedMinute = it },
+                    modifier = Modifier.weight(1f),
+                )
+                WheelPicker(
+                    values = AM_PM,
+                    selectedIndex = selectedPeriod,
+                    onSelected = { selectedPeriod = it },
+                    modifier = Modifier.weight(0.8f),
+                )
+            }
+            Button(
+                onClick = { onPicked(hour24(selectedHour, selectedPeriod), selectedMinute) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Wine, contentColor = Color.White),
+            ) {
+                Text("Update", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
 @Composable
 private fun WheelPicker(
     values: Array<String>,
@@ -2189,6 +2280,7 @@ private fun SettingsScreen(
         mutableStateOf(uiState.settings.targetWeightKg?.let { displayWeightValue(it, uiState.settings.weightUnit).trimNumber() } ?: "")
     }
     var deleteStep by remember { mutableStateOf(0) }
+    var pickingReminderTime by remember { mutableStateOf(false) }
     val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             scope.launch {
@@ -2391,6 +2483,61 @@ private fun SettingsScreen(
                     onCheckedChange = { viewModel.setReminders(it, uiState.settings.reminderLeadMinutes) },
                     colors = settingsSwitchColors(),
                 )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Daily fast reminder", color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (uiState.settings.startReminderEnabled) {
+                            "Every day at ${reminderTimeLabel(uiState.settings.startReminderHour, uiState.settings.startReminderMinute)} - skipped while a fast is running"
+                        } else {
+                            "Nudge to start your fast each day"
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = uiState.settings.startReminderEnabled,
+                    onCheckedChange = { checked ->
+                        viewModel.setStartReminder(checked, uiState.settings.startReminderHour, uiState.settings.startReminderMinute)
+                    },
+                    colors = settingsSwitchColors(),
+                )
+            }
+            if (uiState.settings.startReminderEnabled) {
+                Surface(
+                    onClick = { pickingReminderTime = true },
+                    shape = RoundedCornerShape(18.dp),
+                    color = CardSurface.copy(alpha = 0.72f),
+                    tonalElevation = 0.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Reminder time", color = Ink, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            reminderTimeLabel(uiState.settings.startReminderHour, uiState.settings.startReminderMinute),
+                            color = Brand,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                if (pickingReminderTime) {
+                    ReminderTimeSheet(
+                        hour = uiState.settings.startReminderHour,
+                        minute = uiState.settings.startReminderMinute,
+                        onDismiss = { pickingReminderTime = false },
+                        onPicked = { hour, minute ->
+                            viewModel.setStartReminder(true, hour, minute)
+                            pickingReminderTime = false
+                        },
+                    )
+                }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -2763,7 +2910,7 @@ private fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
     errorLabelColor = ErrorRed,
 )
 
-private enum class AppTab(val label: String, val icon: ImageVector) {
+internal enum class AppTab(val label: String, val icon: ImageVector) {
     Timer("Timer", Icons.Outlined.Timer),
     Fasts("Fasts", Icons.Outlined.Restaurant),
     Trends("Trends", Icons.AutoMirrored.Outlined.ShowChart),
@@ -2799,6 +2946,12 @@ private val monthYearFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern(
 private val HOURS_12 = Array(12) { (it + 1).toString() }
 private val MINUTES = Array(60) { it.toString().padStart(2, '0') }
 private val AM_PM = arrayOf("AM", "PM")
+
+private val reminderTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
+/** "10:00 PM" for the daily fast reminder rows. */
+private fun reminderTimeLabel(hour: Int, minute: Int): String =
+    LocalTime.of(StartReminder.coerceHour(hour), StartReminder.coerceMinute(minute)).format(reminderTimeFormatter)
 
 private fun trendDateRange(period: TrendPeriod, zone: ZoneId = ZoneId.systemDefault()): Pair<LocalDate, LocalDate> {
     val today = LocalDate.now(zone)

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +49,13 @@ class MyFastingAppViewModel(
 ) : ViewModel() {
     private val _messages = MutableSharedFlow<String>()
     val messages: SharedFlow<String> = _messages
+
+    /**
+     * Tab requested from outside the UI (a notification tap), held until the
+     * root composable picks it up and switches tabs.
+     */
+    private val _pendingTab = MutableStateFlow<AppTab?>(null)
+    internal val pendingTab: StateFlow<AppTab?> = _pendingTab
 
     val uiState: StateFlow<MyFastingAppUiState> = combine(
         repository.sessions,
@@ -145,9 +153,24 @@ class MyFastingAppViewModel(
         }
     }
 
+    internal fun requestTab(tab: AppTab) {
+        _pendingTab.value = tab
+    }
+
+    internal fun consumePendingTab() {
+        _pendingTab.value = null
+    }
+
     fun setReminders(enabled: Boolean, leadMinutes: Int) {
         viewModelScope.launch {
             settingsStore.setReminders(enabled, leadMinutes)
+            refreshReminderAndWidget()
+        }
+    }
+
+    fun setStartReminder(enabled: Boolean, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            settingsStore.setStartReminder(enabled, hour, minute)
             refreshReminderAndWidget()
         }
     }

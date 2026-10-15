@@ -2,12 +2,15 @@ package org.myfastingapp.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.notify.FastAlarmKind
 import org.myfastingapp.app.notify.planFastAlarms
+import org.myfastingapp.app.notify.planStartReminder
 
 class FastReminderSchedulerTest {
     @Test
@@ -58,6 +61,21 @@ class FastReminderSchedulerTest {
 
         assertEquals(listOf(90, 95, 100), alarms.filter { it.kind == FastAlarmKind.MILESTONE }.map { it.milestonePercent })
         assertEquals(listOf(18, 24), alarms.filter { it.kind == FastAlarmKind.PHASE_UPDATE }.map { it.phaseHour })
+    }
+
+    @Test
+    fun nightlyStartReminderIsOffByDefault() {
+        assertNull(planStartReminder(UserSettings(), nowEpochMillis = 12 * HOUR_MILLIS))
+    }
+
+    @Test
+    fun nightlyStartReminderPointsAtTheNextEvening() {
+        val settings = UserSettings(startReminderEnabled = true, startReminderHour = 21, startReminderMinute = 30)
+
+        val trigger = requireNotNull(planStartReminder(settings, nowEpochMillis = 12 * HOUR_MILLIS))
+
+        assertEquals(StartReminder.nextTriggerAt(12 * HOUR_MILLIS, hour = 21, minute = 30), trigger)
+        assertTrue(trigger > 12 * HOUR_MILLIS)
     }
 
     private fun session() = FastSession(

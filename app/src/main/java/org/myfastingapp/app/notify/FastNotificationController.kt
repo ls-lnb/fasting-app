@@ -17,6 +17,7 @@ import org.myfastingapp.app.domain.FastSession
 import org.myfastingapp.app.domain.FastingPhases
 import org.myfastingapp.app.domain.TimerMath
 import org.myfastingapp.app.domain.UserSettings
+import org.myfastingapp.app.ui.AppTab
 
 class FastNotificationController(private val context: Context) {
     @SuppressLint("MissingPermission")
@@ -104,17 +105,49 @@ class FastNotificationController(private val context: Context) {
         NotificationManagerCompat.from(context).notify(FAST_REMINDER_NOTIFICATION_ID, notification)
     }
 
+    @SuppressLint("MissingPermission")
+    fun showStartReminder(settings: UserSettings) {
+        if (!canPostNotifications()) return
+        val plan = settings.defaultPlan
+        val notification = NotificationCompat.Builder(context, MyFastingAppApplication.FASTING_ALERTS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_myfastingapp)
+            .setContentTitle("Time to start your fast")
+            .setContentText("Start ${plan.displayLabel} - ${TimerMath.formatMinutes(plan.fastingMinutes)} fasting.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Your ${plan.displayLabel} window is ready to begin. Tap to open the timer and start. Everything stays on this device.",
+                ),
+            )
+            .setContentIntent(openAppIntent(targetTab = AppTab.Timer))
+            .setAutoCancel(true)
+            .setLocalOnly(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        NotificationManagerCompat.from(context).notify(START_REMINDER_NOTIFICATION_ID, notification)
+    }
+
     private fun canPostNotifications(): Boolean {
         return Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
     }
 
-    private fun openAppIntent(): PendingIntent {
+    /**
+     * PendingIntent into [MainActivity]. With [targetTab] the intent carries the
+     * tab to open and re-uses a running instance (CLEAR_TOP + SINGLE_TOP) instead
+     * of stacking a second one, and gets its own request code so the extras of
+     * the plain open-app intent are never overwritten.
+     */
+    private fun openAppIntent(targetTab: AppTab? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
+        if (targetTab != null) {
+            intent.putExtra(MainActivity.EXTRA_OPEN_TAB, targetTab.name)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
         return PendingIntent.getActivity(
             context,
-            0,
+            if (targetTab == null) REQUEST_OPEN_APP else REQUEST_OPEN_TAB,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -133,8 +166,11 @@ class FastNotificationController(private val context: Context) {
     companion object {
         const val ONGOING_NOTIFICATION_ID = 4001
         const val FAST_REMINDER_NOTIFICATION_ID = 4101
+        const val START_REMINDER_NOTIFICATION_ID = 4102
         private const val MILESTONE_NOTIFICATION_BASE_ID = 4200
         private const val REQUEST_START = 4301
         private const val REQUEST_END = 4302
+        private const val REQUEST_OPEN_APP = 0
+        private const val REQUEST_OPEN_TAB = 4303
     }
 }

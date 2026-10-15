@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastPlans
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
@@ -39,6 +40,9 @@ class BackupCodec(
                 customFastingMinutes = settings.customFastingMinutes,
                 remindersEnabled = settings.remindersEnabled,
                 reminderLeadMinutes = settings.reminderLeadMinutes,
+                startReminderEnabled = settings.startReminderEnabled,
+                startReminderHour = StartReminder.coerceHour(settings.startReminderHour),
+                startReminderMinute = StartReminder.coerceMinute(settings.startReminderMinute),
                 weightUnit = settings.weightUnit.storageValue,
                 targetWeightKg = settings.targetWeightKg,
                 milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
@@ -63,6 +67,9 @@ class BackupCodec(
             customFastingMinutes = envelope.settings.customFastingMinutes.coerceIn(30, 7 * 24 * 60),
             remindersEnabled = envelope.settings.remindersEnabled,
             reminderLeadMinutes = envelope.settings.reminderLeadMinutes.coerceIn(0, 24 * 60),
+            startReminderEnabled = envelope.settings.startReminderEnabled,
+            startReminderHour = StartReminder.coerceHour(envelope.settings.startReminderHour),
+            startReminderMinute = StartReminder.coerceMinute(envelope.settings.startReminderMinute),
             weightUnit = WeightUnit.fromStorage(envelope.settings.weightUnit),
             targetWeightKg = envelope.settings.targetWeightKg?.coerceIn(20.0, 500.0),
             milestoneAlertsEnabled = envelope.settings.milestoneAlertsEnabled,
@@ -152,6 +159,9 @@ data class SettingsBackup(
     val customFastingMinutes: Int = FastPlans.DEFAULT_CUSTOM_MINUTES,
     val remindersEnabled: Boolean = false,
     val reminderLeadMinutes: Int = 15,
+    val startReminderEnabled: Boolean = false,
+    val startReminderHour: Int = StartReminder.DEFAULT_HOUR,
+    val startReminderMinute: Int = StartReminder.DEFAULT_MINUTE,
     val weightUnit: String = WeightUnit.LB.storageValue,
     val targetWeightKg: Double? = null,
     val milestoneAlertsEnabled: Boolean = true,

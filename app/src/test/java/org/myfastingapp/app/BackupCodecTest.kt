@@ -1,11 +1,13 @@
 package org.myfastingapp.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.myfastingapp.app.backup.BackupCodec
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightEntry
@@ -18,6 +20,9 @@ class BackupCodecTest {
         val settings = UserSettings(
             remindersEnabled = true,
             reminderLeadMinutes = 20,
+            startReminderEnabled = true,
+            startReminderHour = 21,
+            startReminderMinute = 30,
             milestoneAlertsEnabled = false,
             milestonePercents = setOf(50, 90),
             themeMode = ThemeMode.DARK,
@@ -44,6 +49,9 @@ class BackupCodecTest {
         assertTrue(decoded.settings.milestoneAlertsEnabled)
         assertEquals(UserSettings.MILESTONE_OPTIONS.toSet(), decoded.settings.milestonePercents)
         assertEquals(ThemeMode.SYSTEM, decoded.settings.themeMode)
+        assertFalse(decoded.settings.startReminderEnabled)
+        assertEquals(StartReminder.DEFAULT_HOUR, decoded.settings.startReminderHour)
+        assertEquals(StartReminder.DEFAULT_MINUTE, decoded.settings.startReminderMinute)
     }
 
     @Test
