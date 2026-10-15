@@ -13,3 +13,4 @@ keystore.properties.example
 *.keystore
 release/screenshots/
 release/signing/
+AGENT_BUILD_INSTRUCTIONS.md
