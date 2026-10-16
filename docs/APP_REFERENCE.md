@@ -1,6 +1,6 @@
-# MyFastingApp App Reference
+# TrackFast App Reference
 
-MyFastingApp is a GPL-3.0-only, offline-first Android fasting tracker. The package id is `org.myfastingapp.app`, minSdk is 26, targetSdk is 36, and app version `1.0.1` maps to versionCode `2`.
+TrackFast is a GPL-3.0-only, offline-first Android fasting tracker. The package id is `com.blinkingblue.trackfast`, minSdk is 26, targetSdk is 36, and app version `1.0.1` maps to versionCode `2`.
 
 ## Release Invariants
 
@@ -14,10 +14,10 @@ MyFastingApp is a GPL-3.0-only, offline-first Android fasting tracker. The packa
 
 ## Architecture
 
-- `app/src/main/java/org/myfastingapp/app/MyFastingAppApplication.kt`: creates notification channels and owns the app container.
-- `MyFastingAppContainer.kt`: wires Room, DataStore, repository, backup codec, reminder scheduler, notification controller, and widget updater.
-- `ui/MyFastingApp.kt`: Jetpack Compose Material 3 UI for timer, plans, trends, history, settings, dialogs, date picker, and time picker, plus a theme-aware color palette (light and dark) provided through a CompositionLocal.
-- `ui/MyFastingAppViewModel.kt`: UI state, user actions, import/export launch data, notifications, widget refreshes, and validation messages.
+- `app/src/main/java/com/blinkingblue/trackfast/TrackFastApplication.kt`: creates notification channels and owns the app container.
+- `TrackFastContainer.kt`: wires Room, DataStore, repository, backup codec, reminder scheduler, notification controller, and widget updater.
+- `ui/TrackFast.kt`: Jetpack Compose Material 3 UI for timer, plans, trends, history, settings, dialogs, date picker, and time picker, plus a theme-aware color palette (light and dark) provided through a CompositionLocal.
+- `ui/TrackFastViewModel.kt`: UI state, user actions, import/export launch data, notifications, widget refreshes, and validation messages.
 - `data/*`: Room entities/DAOs/database plus settings DataStore.
 - `domain/*`: timer math, stats, the History streak calendar grid, weight projection, built-in plans, fasting phase labels, and domain models.
 - `backup/BackupCodec.kt`: JSON backup schema v3 and CSV session export.
@@ -73,9 +73,9 @@ All other app-owned screens are designed to fit without vertical scrolling on th
 
 ## Automatic Backup
 
-Automatic backups are opt-in in Settings: a folder is chosen through the Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE`), and the app keeps a persisted read/write grant for it, so no storage permission is requested. A single inexact `AlarmManager` alarm aims to run daily at 03:00 local time (the system may defer it; the alarm is re-armed after each run and on boot), writing one JSON file per day named `myfastingapp-autobackup_<yyyy-MM-dd>.json`; re-running on the same day replaces that day's file. No work library, wake lock, or exact-alarm permission is used.
+Automatic backups are opt-in in Settings: a folder is chosen through the Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE`), and the app keeps a persisted read/write grant for it, so no storage permission is requested. A single inexact `AlarmManager` alarm aims to run daily at 03:00 local time (the system may defer it; the alarm is re-armed after each run and on boot), writing one JSON file per day named `trackfast-autobackup_<yyyy-MM-dd>.json`; re-running on the same day replaces that day's file. No work library, wake lock, or exact-alarm permission is used.
 
-Retention is counted in days (3, 7, 14, or 30, default 7) and applies only to automatic files: a run deletes automatic backups dated before `today - (retention - 1)`. Manual exports use a different name shape (`myfastingapp-backup_<yyyyMMdd_HHmm>.json`) and are never deleted by retention, nor are unrelated files in the folder. Turning the setting on, or choosing a folder, triggers an immediate run, and the result (success or failure with its time) is shown under the retention chips.
+Retention is counted in days (3, 7, 14, or 30, default 7) and applies only to automatic files: a run deletes automatic backups dated before `today - (retention - 1)`. Manual exports use a different name shape (`trackfast-backup_<yyyyMMdd_HHmm>.json`) and are never deleted by retention, nor are unrelated files in the folder. Turning the setting on, or choosing a folder, triggers an immediate run, and the result (success or failure with its time) is shown under the retention chips.
 
 ## Fasting Phases
 
@@ -117,7 +117,7 @@ CSV export is sessions-only and includes:
 
 ## Notifications
 
-MyFastingApp uses two notification channels:
+TrackFast uses two notification channels:
 
 - `fasting_status`: low-importance ongoing notification while fasting.
 - `fasting_alerts`: progress milestone, target reminder, and daily fast reminder notifications.

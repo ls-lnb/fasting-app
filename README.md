@@ -1,6 +1,6 @@
-# MyFastingApp
+# TrackFast
 
-MyFastingApp is a fully offline, GPLv3 Android fasting tracker. It has no accounts, no ads, no analytics, no cloud sync, no proprietary SDKs, and no network permission.
+TrackFast is a fully offline, GPLv3 Android fasting tracker. It has no accounts, no ads, no analytics, no cloud sync, no proprietary SDKs, and no network permission.
 
 ## Features
 
@@ -31,13 +31,13 @@ Current release outputs:
 - Signed release APK: `app/build/outputs/apk/release/app-release.apk`
 - Signed release bundle: `app/build/outputs/bundle/release/app-release.aab`
 
-The release build enables code minification and resource shrinking. Release signing is configured through local ignored files: `keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) pointing at an ignored keystore such as `release/signing/myfastingapp-upload.jks`.
+The release build enables code minification and resource shrinking. Release signing is configured through local ignored files: `keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) pointing at an ignored keystore such as `release/signing/trackfast-upload.jks`.
 
 ## Offline And Privacy Guarantees
 
 The manifest intentionally omits `INTERNET` and `ACCESS_NETWORK_STATE`. App data stays in the local Room database and DataStore preferences unless the user explicitly exports a backup.
 
-The only declared app permissions are local notification support, reboot handling for local reminders/widget refresh, and a user-initiated battery-optimization exemption request (prompted only when the user taps Allow in Settings). Automatic backups write only inside a folder the user picks through the Storage Access Framework, using a persisted grant, so no storage permission is declared and the daily job runs entirely on-device with an inexact alarm. MyFastingApp does not use Google Play Services, Firebase, analytics, crash reporting, ads, remote config, or health/cloud integrations.
+The only declared app permissions are local notification support, reboot handling for local reminders/widget refresh, and a user-initiated battery-optimization exemption request (prompted only when the user taps Allow in Settings). Automatic backups write only inside a folder the user picks through the Storage Access Framework, using a persisted grant, so no storage permission is declared and the daily job runs entirely on-device with an inexact alarm. TrackFast does not use Google Play Services, Firebase, analytics, crash reporting, ads, remote config, or health/cloud integrations.
 
 ## Project Docs
 

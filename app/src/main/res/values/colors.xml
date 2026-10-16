@@ -1,9 +1,10 @@
 <resources>
-    <color name="myfastingapp_teal">#3230B8</color>
-    <color name="myfastingapp_ink">#101820</color>
-    <color name="myfastingapp_slate">#65707C</color>
-    <color name="myfastingapp_muted">#9D969B</color>
-    <color name="myfastingapp_coral">#3230B8</color>
-    <color name="myfastingapp_wine">#242184</color>
-    <color name="myfastingapp_surface">#F7FAF8</color>
+    <color name="trackfast_teal">#3230B8</color>
+    <color name="trackfast_ink">#101820</color>
+    <color name="trackfast_slate">#65707C</color>
+    <color name="trackfast_muted">#9D969B</color>
+    <color name="trackfast_coral">#3230B8</color>
+    <color name="trackfast_wine">#242184</color>
+    <color name="trackfast_surface">#F7FAF8</color>
+    <color name="ic_launcher_background">#5A17D3</color>
 </resources>

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyFastingApp"
+rootProject.name = "TrackFast"
 include(":app")
