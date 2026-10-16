@@ -19,9 +19,9 @@ MyFastingApp is a GPL-3.0-only, offline-first Android fasting tracker. The packa
 - `ui/MyFastingApp.kt`: Jetpack Compose Material 3 UI for timer, plans, trends, history, settings, dialogs, date picker, and time picker, plus a theme-aware color palette (light and dark) provided through a CompositionLocal.
 - `ui/MyFastingAppViewModel.kt`: UI state, user actions, import/export launch data, notifications, widget refreshes, and validation messages.
 - `data/*`: Room entities/DAOs/database plus settings DataStore.
-- `domain/*`: timer math, stats, weight projection, built-in plans, fasting phase labels, and domain models.
+- `domain/*`: timer math, stats, the History streak calendar grid, weight projection, built-in plans, fasting phase labels, and domain models.
 - `backup/BackupCodec.kt`: JSON backup schema v3 and CSV session export.
-- `notify/*`: local reminder broadcasts, boot restoration, ongoing status notification, and milestone notifications.
+- `notify/*`: local reminder broadcasts, boot restoration, ongoing status notification, milestone notifications, and the daily fast reminder.
 - `widget/*`: classic RemoteViews home-screen widget and bitmap progress ring renderer.
 
 ## Data Model
@@ -53,6 +53,7 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - default plan id
 - custom fasting minutes
 - reminder settings
+- daily fast reminder settings (on/off plus chosen time)
 - milestone alert settings (on/off plus selected milestone percentages)
 - theme mode (follow system, dark, light)
 - weight unit
@@ -63,8 +64,8 @@ Weights are stored in kg. The UI can display kg or lb based on settings.
 - Timer: active or idle state, plan chip, progress ring, phase label, elapsed seconds, remaining minutes, start/end action, and editable active fast times. A stage bar under the ring splits the window into the fasting phases in proportion to the hours each covers: idle it previews the split of the remembered plan ("3 stages over 16h"), and while a fast runs passed stages fill, the current one fills part way, and the caption names the next stage. Once the fast runs past its planned window the bar re-bases to the stage in progress (instead of sitting full), and past 24h it draws the final stage up to the next whole hour. Tapping the bar opens a stages view listing every phase from 0-4h to 24h+ with its hours, a short description, and the phase in progress (the full list shows regardless of the chosen duration). Starting a fast opens a start dialog that accepts a backdated start time (quick 30 min/1 h/2 h/3 h shortcuts or a date-time wheel) before the fast is created; the post-start pencil edit remains available.
 - Fasts: predefined plan picker (built-in plans plus a custom duration card). Choosing a plan only selects it and returns to the Timer tab; fasts are always started from Timer.
 - Trends: week/month/year fasting charts and weight charts, with consolidated labels for longer ranges.
-- History: active and completed sessions grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row's duration is coloured by how the fast compared with the plan it began with: green at 100% of the plan, yellow from 85%, and red below that.
-- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, and the optional target reminder), an unrestricted-background battery-optimization exemption prompt with OEM guidance, manual backup export/import, automatic daily backups to a chosen folder with an age-based retention window, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
+- History: a GitHub-style streak calendar across the top covering the last 12 rolling months, horizontally scrollable (it opens at the current date) with month captions, Mon/Wed/Fri row labels, and a Less/More legend. Each day cell takes its colour from the best fast that started on that day in one of three theme purple shades (plan met = strongest, near = mid, short = lightest) and stays empty when no fast starts that day. Below it: active and completed sessions grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row's duration is coloured by how the fast compared with the plan it began with: green at 100% of the plan, yellow from 85%, and red below that.
+- Settings: appearance (follow system / dark / light theme), weight unit, target weight, notification customization (milestone progress alerts on/off with per-milestone selection, the optional target reminder, and the optional daily fast reminder with an adjustable time), an unrestricted-background battery-optimization exemption prompt with OEM guidance, manual backup export/import, automatic daily backups to a chosen folder with an age-based retention window, and two-step local data deletion. The Settings column can scroll if content exceeds small viewports.
 
 The dark theme uses a dedicated palette (deep navy surfaces, brightened brand indigo, light text) rather than an inverted light palette. System bar colors and icon contrast follow the in-app theme; on API 35+ the platform's enforced edge-to-edge behavior takes precedence. The home-screen widget keeps its wallpaper-agnostic design in both themes.
 
@@ -96,7 +97,7 @@ The backup envelope includes:
 
 - `schemaVersion`
 - `exportedAtEpochMillis`
-- `settings` (plan, reminder, milestone alert, theme mode, weight unit, target weight, and automatic-backup enabled/retention fields; new fields have defaults so older schema-3 backups still import)
+- `settings` (plan, reminder, daily fast reminder, milestone alert, theme mode, weight unit, target weight, and automatic-backup enabled/retention fields; new fields have defaults so older schema-3 backups still import)
 - `sessions`
 - `weights`
 
@@ -119,11 +120,13 @@ CSV export is sessions-only and includes:
 MyFastingApp uses two notification channels:
 
 - `fasting_status`: low-importance ongoing notification while fasting.
-- `fasting_alerts`: progress milestone and target reminder notifications.
+- `fasting_alerts`: progress milestone, target reminder, and daily fast reminder notifications.
 
 Milestones are scheduled for 25%, 50%, 75%, 90%, 95%, and 100% of the active fast target. Scheduling uses OS-managed local alarms/reminders and does not request exact alarm special access.
 
-Milestone progress alerts are user-configurable in Settings: a master switch turns them off entirely, and individual milestone percentages can be selected. Only selected milestones are scheduled as alarms, and the receiver re-checks the settings before posting so a disabled milestone never notifies. Backdated fasts only schedule milestones that fall in the future, so past milestones are not replayed. The optional target reminder and the low-importance ongoing status notification are controlled separately.
+Milestone progress alerts are user-configurable in Settings: a master switch turns them off entirely, and individual milestone percentages can be selected. Only selected milestones are scheduled as alarms, and the receiver re-checks the settings before posting so a disabled milestone never notifies. Backdated fasts only schedule milestones that fall in the future, so past milestones are not replayed. The optional target reminder is controlled separately, and the low-importance status notification exists only while a fast is running: with no active fast it is cancelled rather than replaced by an idle "ready" notification, so opening the app while not fasting posts nothing.
+
+The optional daily fast reminder is the day-time counterpart of the target reminder: off by default, and once switched on it posts at the chosen time (default 22:00, adjustable in Settings down to the minute) only when no fast is running, so it never asks you to start a fast that has already begun. It is scheduled with one inexact `RTC_WAKEUP` alarm that is re-armed after every alarm run and on boot, in the same spirit as the nightly backup: no exact-alarm permission and no wake locks, so Doze may deliver it a little late with the screen off. Tapping it opens the app on the Timer tab (the intent carries the target tab and re-uses a running instance instead of stacking a second one); it deliberately has no action buttons.
 
 The app does not poll in the background. The one-second timer runs only while
 the timer screen is visible and the activity is resumed. Notifications and the

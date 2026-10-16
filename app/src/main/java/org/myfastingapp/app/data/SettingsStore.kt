@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.myfastingapp.app.domain.AutoBackup
 import org.myfastingapp.app.domain.FastPlans
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.ThemeMode
 import org.myfastingapp.app.domain.UserSettings
 import org.myfastingapp.app.domain.WeightUnit
@@ -25,6 +26,13 @@ class SettingsStore(private val context: Context) {
             customFastingMinutes = preferences[Keys.CUSTOM_FASTING_MINUTES] ?: FastPlans.DEFAULT_CUSTOM_MINUTES,
             remindersEnabled = preferences[Keys.REMINDERS_ENABLED] ?: false,
             reminderLeadMinutes = preferences[Keys.REMINDER_LEAD_MINUTES] ?: 15,
+            startReminderEnabled = preferences[Keys.START_REMINDER_ENABLED] ?: false,
+            startReminderHour = StartReminder.coerceHour(
+                preferences[Keys.START_REMINDER_HOUR] ?: StartReminder.DEFAULT_HOUR,
+            ),
+            startReminderMinute = StartReminder.coerceMinute(
+                preferences[Keys.START_REMINDER_MINUTE] ?: StartReminder.DEFAULT_MINUTE,
+            ),
             weightUnit = WeightUnit.fromStorage(preferences[Keys.WEIGHT_UNIT]),
             targetWeightKg = preferences[Keys.TARGET_WEIGHT_KG],
             milestoneAlertsEnabled = preferences[Keys.MILESTONE_ALERTS_ENABLED] ?: true,
@@ -61,6 +69,14 @@ class SettingsStore(private val context: Context) {
         context.myFastingAppSettings.edit {
             it[Keys.REMINDERS_ENABLED] = enabled
             it[Keys.REMINDER_LEAD_MINUTES] = leadMinutes.coerceIn(0, 24 * 60)
+        }
+    }
+
+    suspend fun setStartReminder(enabled: Boolean, hour: Int, minute: Int) {
+        context.myFastingAppSettings.edit {
+            it[Keys.START_REMINDER_ENABLED] = enabled
+            it[Keys.START_REMINDER_HOUR] = StartReminder.coerceHour(hour)
+            it[Keys.START_REMINDER_MINUTE] = StartReminder.coerceMinute(minute)
         }
     }
 
@@ -127,6 +143,9 @@ class SettingsStore(private val context: Context) {
             it[Keys.CUSTOM_FASTING_MINUTES] = settings.customFastingMinutes.coerceIn(30, 7 * 24 * 60)
             it[Keys.REMINDERS_ENABLED] = settings.remindersEnabled
             it[Keys.REMINDER_LEAD_MINUTES] = settings.reminderLeadMinutes.coerceIn(0, 24 * 60)
+            it[Keys.START_REMINDER_ENABLED] = settings.startReminderEnabled
+            it[Keys.START_REMINDER_HOUR] = StartReminder.coerceHour(settings.startReminderHour)
+            it[Keys.START_REMINDER_MINUTE] = StartReminder.coerceMinute(settings.startReminderMinute)
             it[Keys.WEIGHT_UNIT] = settings.weightUnit.storageValue
             it[Keys.MILESTONE_ALERTS_ENABLED] = settings.milestoneAlertsEnabled
             it[Keys.MILESTONE_PERCENTS] = settings.milestonePercents
@@ -153,6 +172,9 @@ class SettingsStore(private val context: Context) {
         val CUSTOM_FASTING_MINUTES = intPreferencesKey("custom_fasting_minutes")
         val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
         val REMINDER_LEAD_MINUTES = intPreferencesKey("reminder_lead_minutes")
+        val START_REMINDER_ENABLED = booleanPreferencesKey("start_reminder_enabled")
+        val START_REMINDER_HOUR = intPreferencesKey("start_reminder_hour")
+        val START_REMINDER_MINUTE = intPreferencesKey("start_reminder_minute")
         val WEIGHT_UNIT = stringPreferencesKey("weight_unit")
         val TARGET_WEIGHT_KG = doublePreferencesKey("target_weight_kg")
         val MILESTONE_ALERTS_ENABLED = booleanPreferencesKey("milestone_alerts_enabled")

@@ -9,6 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.myfastingapp.app.MyFastingAppApplication
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.widget.MyFastingAppWidgetProvider
 
 class ReminderReceiver : BroadcastReceiver() {
@@ -17,7 +18,7 @@ class ReminderReceiver : BroadcastReceiver() {
             ACTION_FAST_REMINDER,
             ACTION_FAST_MILESTONE,
             ACTION_FAST_NOTIFICATION_UPDATE,
-            ACTION_NOTIFICATION_START,
+            ACTION_DAILY_FAST_REMINDER,
             ACTION_NOTIFICATION_END,
             -> handleAsync(context, intent)
         }
@@ -33,12 +34,6 @@ class ReminderReceiver : BroadcastReceiver() {
                 val notificationController = FastNotificationController(context)
 
                 when (intent.action) {
-                    ACTION_NOTIFICATION_START -> {
-                        val settings = settingsStore.settings.first()
-                        if (repository.activeSession.first() == null) {
-                            repository.startFast(settings.defaultPlan)
-                        }
-                    }
                     ACTION_NOTIFICATION_END -> repository.endActiveFast()
                     ACTION_FAST_MILESTONE -> {
                         val percent = intent.getIntExtra(EXTRA_MILESTONE_PERCENT, 0)
@@ -57,6 +52,13 @@ class ReminderReceiver : BroadcastReceiver() {
                         val active = repository.activeSession.first()
                         notificationController.showTargetReminder(active)
                     }
+                    ACTION_DAILY_FAST_REMINDER -> {
+                        val settings = settingsStore.settings.first()
+                        val active = repository.activeSession.first()
+                        if (StartReminder.shouldRemind(settings.startReminderEnabled, active != null)) {
+                            notificationController.showStartReminder(settings)
+                        }
+                    }
                     ACTION_FAST_NOTIFICATION_UPDATE -> Unit
                 }
 
@@ -73,9 +75,9 @@ class ReminderReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_FAST_REMINDER = "org.myfastingapp.app.notify.FAST_REMINDER"
+        const val ACTION_DAILY_FAST_REMINDER = "org.myfastingapp.app.notify.DAILY_FAST_REMINDER"
         const val ACTION_FAST_MILESTONE = "org.myfastingapp.app.notify.FAST_MILESTONE"
         const val ACTION_FAST_NOTIFICATION_UPDATE = "org.myfastingapp.app.notify.FAST_NOTIFICATION_UPDATE"
-        const val ACTION_NOTIFICATION_START = "org.myfastingapp.app.notify.START_FAST"
         const val ACTION_NOTIFICATION_END = "org.myfastingapp.app.notify.END_FAST"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_MILESTONE_PERCENT = "milestone_percent"

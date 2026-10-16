@@ -12,8 +12,8 @@ MyFastingApp is a fully offline, GPLv3 Android fasting tracker. It has no accoun
 - Light, dark, and follow-system theme selectable in Settings, with a purpose-built dark palette.
 - Week, month, and year trend views for fasting and weight.
 - Home-screen widget with idle and active states, progress ring, and start/end/open controls.
-- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings. An optional battery-optimization exemption prompt in Settings helps alerts arrive on time on aggressive OEM builds.
-- History grouped by month, ten fasts per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row is titled with the plan that fast began with, and its duration is coloured against that plan (green when met, amber from 85%, red below).
+- Low-power local status notification while fasting plus milestone notifications at 25%, 50%, 75%, 90%, 95%, and 100%, each toggleable or fully switchable off in Settings. An optional daily fast reminder (default 10 PM, time adjustable) nudges you to begin a fast when none is running, and tapping it opens the Timer tab. An optional battery-optimization exemption prompt in Settings helps alerts arrive on time on aggressive OEM builds.
+- History with a GitHub-style, horizontally scrollable streak calendar of the last 12 rolling months (three theme purple shades ranked by how the fast that started that day went, empty days left blank), then fasts grouped by month, ten per page with a "Show 10 more" button, manual fast logging, editing, and deletion. Each row is titled with the plan that fast began with, and its duration is coloured against that plan (green when met, amber from 85%, red below).
 - Local JSON backup import/export with timestamped file names, CSV session export, and optional automatic daily backups to a folder you choose (keep 3, 7, 14, or 30 days of daily files; exports you saved by hand are never cleaned up). All of it goes through Android's Storage Access Framework.
 
 ## Build

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.getSystemService
 import org.myfastingapp.app.domain.FastSession
+import org.myfastingapp.app.domain.StartReminder
 import org.myfastingapp.app.domain.UserSettings
 
 class FastReminderScheduler(private val context: Context) {
@@ -16,7 +17,10 @@ class FastReminderScheduler(private val context: Context) {
 
     fun schedule(session: FastSession?, settings: UserSettings, nowEpochMillis: Long = System.currentTimeMillis()) {
         cancelScheduledAlarms()
-        notificationController.showOngoing(session, settings, nowEpochMillis)
+        notificationController.showOngoing(session, nowEpochMillis)
+        // Armed each day regardless of the session, so the nudge survives
+        // the fast ending; the receiver re-checks whether a fast is running then.
+        scheduleStartReminder(settings, nowEpochMillis)
         if (session == null) return
 
         planFastAlarms(session, settings, nowEpochMillis).forEach { alarm ->
@@ -71,8 +75,23 @@ class FastReminderScheduler(private val context: Context) {
 
     private fun cancelScheduledAlarms() {
         cancelRequest(REQUEST_TARGET_REMINDER, ReminderReceiver.ACTION_FAST_REMINDER)
+        cancelRequest(REQUEST_START_REMINDER, ReminderReceiver.ACTION_DAILY_FAST_REMINDER)
         MILESTONES.forEach { cancelRequest(REQUEST_MILESTONE_BASE + it, ReminderReceiver.ACTION_FAST_MILESTONE) }
         PHASE_HOUR_MARKS.forEach { cancelRequest(REQUEST_PHASE_UPDATE_BASE + it, ReminderReceiver.ACTION_FAST_NOTIFICATION_UPDATE) }
+    }
+
+    private fun scheduleStartReminder(settings: UserSettings, nowEpochMillis: Long) {
+        val triggerAt = planStartReminder(settings, nowEpochMillis) ?: return
+        val intent = Intent(context, ReminderReceiver::class.java)
+            .setAction(ReminderReceiver.ACTION_DAILY_FAST_REMINDER)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            REQUEST_START_REMINDER,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        // Inexact on purpose, like the nightly backup: no exact-alarm permission.
+        alarmManager?.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
     }
 
     private fun cancelRequest(requestCode: Int, action: String) {
@@ -91,6 +110,7 @@ class FastReminderScheduler(private val context: Context) {
         const val REQUEST_TARGET_REMINDER = 3101
         const val REQUEST_MILESTONE_BASE = 3300
         const val REQUEST_PHASE_UPDATE_BASE = 3400
+        const val REQUEST_START_REMINDER = 3501
     }
 }
 
@@ -160,3 +180,15 @@ internal fun planFastAlarms(
 
 private val MILESTONES = UserSettings.MILESTONE_OPTIONS
 private val PHASE_HOUR_MARKS = listOf(4, 12, 18, 24)
+
+/** When the next nightly start reminder fires, or null while the option is off. */
+internal fun planStartReminder(settings: UserSettings, nowEpochMillis: Long): Long? =
+    if (settings.startReminderEnabled) {
+        StartReminder.nextTriggerAt(
+            nowEpochMillis = nowEpochMillis,
+            hour = settings.startReminderHour,
+            minute = settings.startReminderMinute,
+        )
+    } else {
+        null
+    }
