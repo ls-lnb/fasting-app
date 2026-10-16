@@ -5,7 +5,7 @@
     android:minResizeHeight="96dp"
     android:minResizeWidth="170dp"
     android:minWidth="190dp"
-    android:previewImage="@drawable/ic_trackfast"
+    android:previewImage="@drawable/ic_widget_preview"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="3"

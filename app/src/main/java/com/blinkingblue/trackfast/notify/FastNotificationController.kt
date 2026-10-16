@@ -41,7 +41,7 @@ class FastNotificationController(private val context: Context) {
             "${TimerMath.formatDuration(progress.remainingMillis)} remaining"
         }
         val notification = NotificationCompat.Builder(context, TrackFastApplication.FASTING_STATUS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_trackfast)
+            .setSmallIcon(R.drawable.ic_stat_trackfast)
             .setContentIntent(openAppIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -57,7 +57,7 @@ class FastNotificationController(private val context: Context) {
             .setProgress(100, progress.progressPercent.coerceAtMost(100), false)
             .setColor(phase.colorArgb)
             .setShowWhen(false)
-            .addAction(R.drawable.ic_trackfast, "End fast", actionIntent(ReminderReceiver.ACTION_NOTIFICATION_END, REQUEST_END))
+            .addAction(R.drawable.ic_stat_trackfast, "End fast", actionIntent(ReminderReceiver.ACTION_NOTIFICATION_END, REQUEST_END))
             .build()
 
         NotificationManagerCompat.from(context).notify(ONGOING_NOTIFICATION_ID, notification)
@@ -69,7 +69,7 @@ class FastNotificationController(private val context: Context) {
         val progress = TimerMath.progress(session.startEpochMillis, session.targetSeconds, nowEpochMillis)
         val phase = FastingPhases.forElapsed(progress.elapsedMillis)
         val notification = NotificationCompat.Builder(context, TrackFastApplication.FASTING_ALERTS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_trackfast)
+            .setSmallIcon(R.drawable.ic_stat_trackfast)
             .setContentTitle("$percent% fast progress")
             .setContentText("${phase.title}: ${TimerMath.formatDuration(progress.elapsedMillis)} elapsed.")
             .setStyle(NotificationCompat.BigTextStyle().bigText("${session.displayPlanName} is $percent% complete. ${phase.body}"))
@@ -91,7 +91,7 @@ class FastNotificationController(private val context: Context) {
             "${TimerMath.formatProgressPercent(progress.progressFraction)} complete - target is almost here."
         } ?: "Your fasting target is almost here."
         val notification = NotificationCompat.Builder(context, TrackFastApplication.FASTING_ALERTS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_trackfast)
+            .setSmallIcon(R.drawable.ic_stat_trackfast)
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(openAppIntent())
@@ -108,7 +108,7 @@ class FastNotificationController(private val context: Context) {
         if (!canPostNotifications()) return
         val plan = settings.defaultPlan
         val notification = NotificationCompat.Builder(context, TrackFastApplication.FASTING_ALERTS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_trackfast)
+            .setSmallIcon(R.drawable.ic_stat_trackfast)
             .setContentTitle("Time to start your fast")
             .setContentText("Start ${plan.displayLabel} - ${TimerMath.formatMinutes(plan.fastingMinutes)} fasting.")
             .setStyle(
