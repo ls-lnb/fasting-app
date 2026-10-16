@@ -17,7 +17,7 @@ class FastReminderScheduler(private val context: Context) {
 
     fun schedule(session: FastSession?, settings: UserSettings, nowEpochMillis: Long = System.currentTimeMillis()) {
         cancelScheduledAlarms()
-        notificationController.showOngoing(session, settings, nowEpochMillis)
+        notificationController.showOngoing(session, nowEpochMillis)
         // Armed each day regardless of the session, so the nudge survives
         // the fast ending; the receiver re-checks whether a fast is running then.
         scheduleStartReminder(settings, nowEpochMillis)
