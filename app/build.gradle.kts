@@ -15,12 +15,12 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "org.myfastingapp.app"
+    namespace = "com.blinkingblue.trackfast"
     compileSdk = 36
     buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = "org.myfastingapp.app"
+        applicationId = "com.blinkingblue.trackfast"
         minSdk = 26
         targetSdk = 36
         versionCode = 2

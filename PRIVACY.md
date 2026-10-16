@@ -1,12 +1,12 @@
 # Privacy
 
-MyFastingApp does not collect, transmit, sell, or share data.
+TrackFast does not collect, transmit, sell, or share data.
 
 The app has no account system, no analytics, no ads, no cloud sync, and no internet permission.
 
 ## Data Stored On Device
 
-MyFastingApp stores fasting sessions, weight entries, app settings, reminder preferences, and widget state locally on the user's device. Times are stored as epoch milliseconds so history remains stable across time zone and daylight saving changes.
+TrackFast stores fasting sessions, weight entries, app settings, reminder preferences, and widget state locally on the user's device. Times are stored as epoch milliseconds so history remains stable across time zone and daylight saving changes.
 
 ## User Controlled Export
 
@@ -14,7 +14,7 @@ The user can export a JSON backup that includes settings, fasts, and weights. Th
 
 ## Import And Deletion
 
-The user can import a JSON backup through Android's system document picker. The user can also delete all local MyFastingApp data from Settings after two confirmation steps. Uninstalling the app removes its local app data through Android's normal app storage behavior.
+The user can import a JSON backup through Android's system document picker. The user can also delete all local TrackFast data from Settings after two confirmation steps. Uninstalling the app removes its local app data through Android's normal app storage behavior.
 
 ## Publishing Contact
 

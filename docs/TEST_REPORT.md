@@ -1,8 +1,8 @@
-# MyFastingApp Release Test Report
+# TrackFast Release Test Report
 
 Date: 2026-06-28
 
-Device target used for prior manual checks: Android API 36 emulator, package `org.myfastingapp.app`.
+Device target used for prior manual checks: Android API 36 emulator, package `com.blinkingblue.trackfast`.
 
 ## Automated Results
 
@@ -16,7 +16,7 @@ Current release audit did not rerun connected emulator tests because no emulator
 
 Unit and instrumentation coverage includes timer math, stats, weight trend projection, backup parsing, stress backup round trip, Room DAO behavior, Compose primary dashboard action, widget provider discovery, widget idle rendering, widget active/progress rendering, and widget start/end broadcast actions.
 
-Widget service registration was also checked with `dumpsys appwidget`; Android registered `org.myfastingapp.app.widget.MyFastingAppWidgetProvider`.
+Widget service registration was also checked with `dumpsys appwidget`; Android registered `com.blinkingblue.trackfast.widget.TrackFastWidgetProvider`.
 
 ## Release Artifacts
 
@@ -24,11 +24,11 @@ Widget service registration was also checked with `dumpsys appwidget`; Android r
 - Test-install release APK: `app/build/outputs/apk/release/app-release.apk`
 - Release AAB: `app/build/outputs/bundle/release/app-release.aab`
 
-The release APK and AAB are built, minified, shrunk, and signed with the MyFastingApp release key.
+The release APK and AAB are built, minified, shrunk, and signed with the TrackFast release key.
 
 Upload certificate:
 
-- Owner: `CN=MyFastingApp Upload, O=MyFastingApp, C=US`
+- Owner: `CN=TrackFast Upload, O=TrackFast, C=US`
 - SHA-1: `33:3F:52:35:2D:EF:64:67:7E:2B:1B:D1:F8:CF:77:D2:FA:09:9D:52`
 - SHA-256: `C2:DC:03:FB:3F:5B:19:93:A0:EB:98:6C:9B:9F:5B:BD:C1:BF:2E:D1:25:E1:5A:A0:F1:8D:92:86:B3:27:E4:03`
 
@@ -64,7 +64,7 @@ The widget root uses an opaque cream background with a subtle border, so text re
 
 Screenshots are stored in `release/screenshots/phone`.
 
-- `01_myfastingapp_timer.png`: renamed idle timer screen showing `MyFastingApp`.
+- `01_trackfast_timer.png`: renamed idle timer screen showing `TrackFast`.
 
 The prior screenshot set was removed after the development rename so stale branding is not kept in the repository. Store-listing screenshots should be recaptured from the final signed build before publication.
 
@@ -79,7 +79,7 @@ The backup unit stress test round-tripped 400 sessions and 365 weights through J
 
 ## Exploratory Stress
 
-An Android Monkey run was attempted with 300 events before the rename. The emulator generated noisy system tombstone monitor output, so the run was aborted and is not counted as a conclusive pass. Checked logs did not show a MyFastingApp `FATAL EXCEPTION` or ANR during that attempt.
+An Android Monkey run was attempted with 300 events before the rename. The emulator generated noisy system tombstone monitor output, so the run was aborted and is not counted as a conclusive pass. Checked logs did not show a TrackFast `FATAL EXCEPTION` or ANR during that attempt.
 
 ## Remaining Release Checks
 

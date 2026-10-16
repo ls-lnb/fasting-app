@@ -1,23 +1,23 @@
-AutoName: MyFastingApp
+AutoName: TrackFast
 Categories:
   - Sports & Health
   - Timer
 License: GPL-3.0-only
-AuthorName: MyFastingApp contributors
-SourceCode: https://github.com/rohanwinsor/MyFastingApp
-IssueTracker: https://github.com/rohanwinsor/MyFastingApp/issues
-Changelog: https://github.com/rohanwinsor/MyFastingApp/releases
+AuthorName: TrackFast contributors
+SourceCode: https://github.com/ls-lnb/fasting-app
+IssueTracker: https://github.com/ls-lnb/fasting-app/issues
+Changelog: https://github.com/ls-lnb/fasting-app/releases
 Donate: https://buymeacoffee.com/rohanwinsor
 RepoType: git
-Repo: https://github.com/rohanwinsor/MyFastingApp.git
+Repo: https://github.com/ls-lnb/fasting-app.git
 Builds:
-  - versionName: 1.0.0
-    versionCode: 1
-    commit: v1.0.0
+  - versionName: 1.0.1
+    versionCode: 2
+    commit: v1.0.1
     subdir: app
     gradle:
       - yes
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.0
-CurrentVersionCode: 1
+CurrentVersion: 1.0.1
+CurrentVersionCode: 2

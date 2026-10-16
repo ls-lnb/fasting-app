@@ -1,8 +1,8 @@
-MyFastingApp is a privacy-first fasting tracker that works fully offline.
+TrackFast is a privacy-first fasting tracker that works fully offline.
 
 Track active fasts, choose common fasting plans, edit active or completed sessions, view history and trends, log weight, set a target weight, schedule local reminders, and keep a home-screen widget updated without accounts or cloud services.
 
-MyFastingApp includes:
+TrackFast includes:
 
 - Common fasting plans plus custom durations
 - A clean active-fast timer with progress and fasting phase labels
@@ -13,4 +13,4 @@ MyFastingApp includes:
 - Home-screen widget controls
 - Ongoing fasting notification and local progress milestones
 
-MyFastingApp has no ads, no analytics, no proprietary SDKs, no cloud sync, and no internet permission.
+TrackFast has no ads, no analytics, no proprietary SDKs, no cloud sync, and no internet permission.

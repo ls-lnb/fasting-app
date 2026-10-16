@@ -1,1 +1,1 @@
-MyFastingApp
+TrackFast

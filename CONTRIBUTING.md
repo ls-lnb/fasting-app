@@ -1,6 +1,6 @@
 # Contributing
 
-MyFastingApp is privacy-first and offline-first. Contributions should preserve these constraints:
+TrackFast is privacy-first and offline-first. Contributions should preserve these constraints:
 
 - Do not add network permissions, analytics, ads, proprietary SDKs, Firebase, Google Play Services, or remote configuration.
 - Store fasting data locally and make user-controlled export/import the only data transfer path.

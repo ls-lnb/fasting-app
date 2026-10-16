@@ -5,15 +5,15 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:name=".MyFastingAppApplication"
+        android:name=".TrackFastApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
-        android:icon="@drawable/ic_myfastingapp"
+        android:icon="@drawable/ic_trackfast"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_myfastingapp"
+        android:roundIcon="@drawable/ic_trackfast"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MyFastingApp">
+        android:theme="@style/Theme.TrackFast">
 
         <activity
             android:name=".MainActivity"
@@ -25,16 +25,16 @@
         </activity>
 
         <receiver
-            android:name=".widget.MyFastingAppWidgetProvider"
+            android:name=".widget.TrackFastWidgetProvider"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="org.myfastingapp.app.widget.START_DEFAULT" />
-                <action android:name="org.myfastingapp.app.widget.END_FAST" />
+                <action android:name="com.blinkingblue.trackfast.widget.START_DEFAULT" />
+                <action android:name="com.blinkingblue.trackfast.widget.END_FAST" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/myfastingapp_widget_info" />
+                android:resource="@xml/trackfast_widget_info" />
         </receiver>
 
         <receiver
