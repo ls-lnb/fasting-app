@@ -1383,6 +1383,7 @@ private fun ChartLegend(color: Color, label: String) {
 @Composable
 private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppViewModel) {
     var editing by remember { mutableStateOf<FastSession?>(null) }
+    var deleting by remember { mutableStateOf<FastSession?>(null) }
     var loggingFast by remember { mutableStateOf(false) }
     var visibleCount by rememberSaveable { mutableIntStateOf(HISTORY_PAGE_SIZE) }
     val shownCount = visibleCount.coerceAtMost(uiState.sessions.size)
@@ -1442,7 +1443,7 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                     CompactHistoryRow(
                         session = session,
                         onEdit = { editing = session },
-                        onDelete = { viewModel.deleteFast(session.id) },
+                        onDelete = { deleting = session },
                     )
                 }
             }
@@ -1490,6 +1491,36 @@ private fun HistoryScreen(uiState: MyFastingAppUiState, viewModel: MyFastingAppV
                 viewModel.addCompletedFast(planName, targetSeconds, start, end)
                 loggingFast = false
             },
+        )
+    }
+    deleting?.let { session ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete this fast?") },
+            text = {
+                Text(
+                    "${session.displayPlanName} - ${formatFriendlyDateTime(session.startEpochMillis)} -> " +
+                        "${session.endEpochMillis?.let(::formatFriendlyDateTime) ?: "Now"}. " +
+                        "This cannot be undone.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteFast(session.id)
+                        deleting = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Wine, contentColor = Color.White),
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = DialogSurface,
+            titleContentColor = Ink,
+            textContentColor = Slate,
+            tonalElevation = 0.dp,
         )
     }
 }
@@ -1690,7 +1721,7 @@ private fun CompactHistoryRow(session: FastSession, onEdit: () -> Unit, onDelete
                 Icon(Icons.Outlined.Edit, contentDescription = "Edit fast", tint = Slate)
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Outlined.Delete, contentDescription = "Delete fast", tint = Color(0xFFB3261E))
+                Icon(Icons.Outlined.Delete, contentDescription = "Delete fast", tint = Slate)
             }
         }
     }
