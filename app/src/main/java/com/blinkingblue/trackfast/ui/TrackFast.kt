@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
@@ -1639,21 +1640,27 @@ private fun StreakWeekColumns(weeks: List<List<StreakDay>>) {
 
 @Composable
 private fun StreakDayCell(day: StreakDay) {
-    val color = when (day.outcome) {
+    val shape = RoundedCornerShape(3.dp)
+    val fill = when (day.outcome) {
         FastPlanOutcome.Met -> StreakMet
         FastPlanOutcome.Near -> StreakNear
         FastPlanOutcome.Short -> StreakShort
-        null -> StreakEmpty
+        // No fast that day: an outlined slot, so it never reads as a low intensity.
+        null -> Color.Transparent
     }
     Box(
         modifier = Modifier
             .padding(bottom = StreakCellGap)
             .size(StreakCell)
-            .background(color, RoundedCornerShape(3.dp)),
+            .background(fill, shape)
+            .then(if (day.outcome == null) Modifier.border(1.dp, StreakEmptyBorder, shape) else Modifier),
     )
 }
 
-/** "Less [swatches] More" ramp under the grid, matching the GitHub legend. */
+/**
+ * "Less [swatches] More" ramp under the grid. Only the three fast intensities are
+ * shown: days without a fast are outlined in the calendar, so they are not a level.
+ */
 @Composable
 private fun StreakLegend() {
     Row(
@@ -1664,7 +1671,6 @@ private fun StreakLegend() {
         Text("Less", style = MaterialTheme.typography.labelSmall, color = Muted)
         Spacer(Modifier.width(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(StreakCellGap)) {
-            StreakSwatch(StreakEmpty)
             StreakSwatch(StreakShort)
             StreakSwatch(StreakNear)
             StreakSwatch(StreakMet)
@@ -3236,7 +3242,7 @@ private data class AppPalette(
     val gridLine: Color,
     val switchTrackOff: Color,
     val error: Color,
-    val streakEmpty: Color,
+    val streakEmptyBorder: Color,
     val streakShort: Color,
     val streakNear: Color,
     val streakMet: Color,
@@ -3268,9 +3274,10 @@ private val LightPalette = AppPalette(
     gridLine = Color(0xFFE9DDD7),
     switchTrackOff = Color(0xFFE8E2DC),
     error = Color(0xFFB3261E),
-    // Streak calendar ramp: intensity grows as the purple darkens.
-    streakEmpty = Color(0xFFEDE8E1),
-    streakShort = Color(0xFFC4C0F8),
+    // Streak calendar ramp: intensity grows as the purple darkens; days without a
+    // fast are outlined rather than filled.
+    streakEmptyBorder = Color(0xFFE3DCD4),
+    streakShort = Color(0xFFA9A4F5),
     streakNear = Color(0xFF6D68F2),
     streakMet = Color(0xFF3230B8),
 )
@@ -3301,11 +3308,13 @@ private val DarkPalette = AppPalette(
     gridLine = Color(0xFF2C333F),
     switchTrackOff = Color(0xFF39414F),
     error = Color(0xFFFFB4AB),
-    // Streak calendar ramp: intensity grows as the purple brightens on dark.
-    streakEmpty = Color(0xFF242A35),
-    streakShort = Color(0xFF4644A6),
-    streakNear = Color(0xFF6E6AF0),
-    streakMet = Color(0xFF9A96FF),
+    // Streak calendar ramp: the same three shades as the light theme, so intensity
+    // always reads as a deeper purple (lighter = less, darker = more) and the mental
+    // model does not flip between themes. Days without a fast are outlined instead.
+    streakEmptyBorder = Color(0xFF333B49),
+    streakShort = Color(0xFFA9A4F5),
+    streakNear = Color(0xFF6D68F2),
+    streakMet = Color(0xFF3230B8),
 )
 
 private val LocalAppPalette = compositionLocalOf { LightPalette }
@@ -3337,7 +3346,7 @@ private val GraphSurface: Color @Composable get() = LocalAppPalette.current.grap
 private val GridLine: Color @Composable get() = LocalAppPalette.current.gridLine
 private val SwitchTrackOff: Color @Composable get() = LocalAppPalette.current.switchTrackOff
 private val ErrorRed: Color @Composable get() = LocalAppPalette.current.error
-private val StreakEmpty: Color @Composable get() = LocalAppPalette.current.streakEmpty
+private val StreakEmptyBorder: Color @Composable get() = LocalAppPalette.current.streakEmptyBorder
 private val StreakShort: Color @Composable get() = LocalAppPalette.current.streakShort
 private val StreakNear: Color @Composable get() = LocalAppPalette.current.streakNear
 private val StreakMet: Color @Composable get() = LocalAppPalette.current.streakMet
