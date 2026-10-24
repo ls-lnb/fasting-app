@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
@@ -753,10 +754,10 @@ private fun TimingBlock(
     modifier: Modifier = Modifier,
     textAlign: TextAlign,
 ) {
-    val horizontalAlignment = if (textAlign == TextAlign.End) Alignment.End else Alignment.Start
+    val isEndAligned = textAlign == TextAlign.End
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalAlignment = horizontalAlignment,
+        horizontalAlignment = if (isEndAligned) Alignment.End else Alignment.Start,
         modifier = modifier,
     ) {
         Text(
@@ -769,22 +770,28 @@ private fun TimingBlock(
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isEndAligned) Arrangement.End else Arrangement.Start,
             verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            val editIcon: @Composable () -> Unit = {
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Edit", tint = Coral, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            // Mirror the two columns: values hug their outer edge, pencils face the middle,
+            // and each value sizes to its content instead of stretching across the block.
+            if (isEndAligned) editIcon()
             Text(
                 value,
                 style = MaterialTheme.typography.bodyMedium,
                 color = Slate,
                 maxLines = 2,
                 textAlign = textAlign,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f, fill = false),
             )
-            if (onEdit != null) {
-                IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit", tint = Coral, modifier = Modifier.size(18.dp))
-                }
-            }
+            if (!isEndAligned) editIcon()
         }
     }
 }
@@ -1012,6 +1019,7 @@ private fun TrendsScreen(uiState: TrackFastUiState, viewModel: TrackFastViewMode
     var loggingWeight by remember { mutableStateOf(false) }
     var loggingFast by remember { mutableStateOf(false) }
     var selectedPeriod by rememberSaveable { mutableStateOf(TrendPeriod.Week) }
+    var trendMetric by rememberSaveable { mutableStateOf(FastTrendMetric.Average) }
 
     Column(
         modifier = Modifier
@@ -1025,6 +1033,8 @@ private fun TrendsScreen(uiState: TrackFastUiState, viewModel: TrackFastViewMode
         RecentFastsTrendCard(
             sessions = uiState.sessions,
             period = selectedPeriod,
+            metric = trendMetric,
+            onMetricSelected = { trendMetric = it },
             onLogFast = { loggingFast = true },
         )
         WeightTrendCard(
@@ -1089,6 +1099,8 @@ private fun PeriodTabs(selectedPeriod: TrendPeriod, onPeriodSelected: (TrendPeri
 private fun RecentFastsTrendCard(
     sessions: List<FastSession>,
     period: TrendPeriod,
+    metric: FastTrendMetric,
+    onMetricSelected: (FastTrendMetric) -> Unit,
     onLogFast: () -> Unit,
 ) {
     val zone = ZoneId.systemDefault()
@@ -1107,14 +1119,14 @@ private fun RecentFastsTrendCard(
                     Text("Average", style = MaterialTheme.typography.bodySmall, color = Muted)
                     Text(TimerMath.formatDuration(averageSeconds * 1_000L), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
                 }
-                Text(trendRangeLabel(period), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Slate)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(trendRangeLabel(period), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Slate)
+                    if (period != TrendPeriod.Week) {
+                        ChartMetricToggle(selected = metric, onSelected = onMetricSelected)
+                    }
+                }
             }
-            FastBarsChart(sessions = sessions, period = period)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                ChartLegend(Coral, "Goal met")
-                Spacer(Modifier.width(14.dp))
-                ChartLegend(MutedPink, "Goal not met")
-            }
+            FastBarsChart(sessions = sessions, period = period, metric = metric)
             Button(
                 onClick = onLogFast,
                 modifier = Modifier
@@ -1134,8 +1146,35 @@ private fun RecentFastsTrendCard(
 }
 
 @Composable
-private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
-    val buckets = fastTrendBuckets(sessions, period)
+private fun ChartMetricToggle(selected: FastTrendMetric, onSelected: (FastTrendMetric) -> Unit) {
+    Row(
+        modifier = Modifier
+            .background(BarsChartSurface, RoundedCornerShape(10.dp))
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        FastTrendMetric.entries.forEach { metric ->
+            val isSelected = metric == selected
+            Surface(
+                onClick = { onSelected(metric) },
+                shape = RoundedCornerShape(8.dp),
+                color = if (isSelected) Color.White else Color.Transparent,
+            ) {
+                Text(
+                    metric.label,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isSelected) Coral else Muted,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod, metric: FastTrendMetric) {
+    val buckets = fastTrendBuckets(sessions, period, metric = metric)
     val maxHours = buckets.maxOfOrNull { it.hours } ?: 0.0
     // 4h gridline steps keep small differences between fasts visible; widen to
     // 8h steps only when fasts exceed a day so labels stay readable.
@@ -1173,7 +1212,7 @@ private fun FastBarsChart(sessions: List<FastSession>, period: TrendPeriod) {
                                 modifier = Modifier
                                     .width(if (buckets.size > 8) 6.dp else 9.dp)
                                     .height(barHeight)
-                                    .background(if (bucket.goalMet) Coral else MutedPink, RoundedCornerShape(8.dp)),
+                                    .background(Coral, RoundedCornerShape(8.dp)),
                             )
                         }
                     }
@@ -1369,14 +1408,6 @@ private fun WeightGraph(weights: List<WeightEntry>, unit: WeightUnit, targetWeig
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ChartLegend(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Muted)
     }
 }
 
@@ -1639,21 +1670,27 @@ private fun StreakWeekColumns(weeks: List<List<StreakDay>>) {
 
 @Composable
 private fun StreakDayCell(day: StreakDay) {
-    val color = when (day.outcome) {
+    val shape = RoundedCornerShape(3.dp)
+    val fill = when (day.outcome) {
         FastPlanOutcome.Met -> StreakMet
         FastPlanOutcome.Near -> StreakNear
         FastPlanOutcome.Short -> StreakShort
-        null -> StreakEmpty
+        // No fast that day: an outlined slot, so it never reads as a low intensity.
+        null -> Color.Transparent
     }
     Box(
         modifier = Modifier
             .padding(bottom = StreakCellGap)
             .size(StreakCell)
-            .background(color, RoundedCornerShape(3.dp)),
+            .background(fill, shape)
+            .then(if (day.outcome == null) Modifier.border(1.dp, StreakEmptyBorder, shape) else Modifier),
     )
 }
 
-/** "Less [swatches] More" ramp under the grid, matching the GitHub legend. */
+/**
+ * "Less [swatches] More" ramp under the grid. Only the three fast intensities are
+ * shown: days without a fast are outlined in the calendar, so they are not a level.
+ */
 @Composable
 private fun StreakLegend() {
     Row(
@@ -1664,7 +1701,6 @@ private fun StreakLegend() {
         Text("Less", style = MaterialTheme.typography.labelSmall, color = Muted)
         Spacer(Modifier.width(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(StreakCellGap)) {
-            StreakSwatch(StreakEmpty)
             StreakSwatch(StreakShort)
             StreakSwatch(StreakNear)
             StreakSwatch(StreakMet)
@@ -1744,7 +1780,7 @@ private fun StartFastDialog(
     onDismiss: () -> Unit,
     onStart: (Long) -> Unit,
 ) {
-    val now = remember { System.currentTimeMillis() }
+    val now = remember { System.currentTimeMillis().floorToMinute() }
     var startMillis by remember { mutableLongStateOf(now) }
     val targetSeconds = plan.fastingMinutes * 60L
     val safeStart = startMillis.coerceAtMost(now)
@@ -1815,7 +1851,7 @@ private fun LogFastDialog(
     onDismiss: () -> Unit,
     onSave: (String, Long, Long, Long) -> Unit,
 ) {
-    val now = remember { System.currentTimeMillis() }
+    val now = remember { System.currentTimeMillis().floorToMinute() }
     val defaultStart = now - selectedPlan.fastingMinutes * 60_000L
     var planName by remember { mutableStateOf(selectedPlan.displayLabel) }
     var targetHours by remember { mutableStateOf((selectedPlan.fastingMinutes / 60.0).trimNumber()) }
@@ -1881,8 +1917,8 @@ private fun LogFastDialog(
 private fun EditFastDialog(session: FastSession, onDismiss: () -> Unit, onSave: (Long, Long) -> Unit) {
     val targetSeconds = session.plannedSeconds
     val plannedEnd = session.endEpochMillis ?: (session.startEpochMillis + targetSeconds * 1_000L)
-    var startMillis by remember(session.id) { mutableLongStateOf(session.startEpochMillis) }
-    var endMillis by remember(session.id) { mutableLongStateOf(plannedEnd) }
+    var startMillis by remember(session.id) { mutableLongStateOf(session.startEpochMillis.floorToMinute()) }
+    var endMillis by remember(session.id) { mutableLongStateOf(plannedEnd.floorToMinute()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -1916,7 +1952,7 @@ private fun EditFastDialog(session: FastSession, onDismiss: () -> Unit, onSave: 
                     },
                 )
                 Text(
-                    "Duration ${TimerMath.formatDurationWithSeconds((endMillis - startMillis).coerceAtLeast(0L))}",
+                    "Duration ${TimerMath.formatDuration((endMillis - startMillis).coerceAtLeast(0L))}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )
@@ -2024,7 +2060,7 @@ private fun DateTimeWheelSheet(
     val pickedMillis = remember(selectedDateIndex, selectedHour, selectedMinute, selectedPeriod, epochMillis) {
         val hour24 = hour24(selectedHour, selectedPeriod)
         dates[selectedDateIndex]
-            .atTime(hour24, selectedMinute, initial.second, initial.nano)
+            .atTime(hour24, selectedMinute)
             .atZone(zone)
             .toInstant()
             .toEpochMilli()
@@ -2242,7 +2278,7 @@ private fun LogWeightDialog(
     onDismiss: () -> Unit,
     onSave: (Double, Long) -> Unit,
 ) {
-    val now = remember { System.currentTimeMillis() }
+    val now = remember { System.currentTimeMillis().floorToMinute() }
     var weightText by remember { mutableStateOf("") }
     var recordedMillis by remember { mutableLongStateOf(now) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -2955,10 +2991,14 @@ private enum class TrendPeriod(val label: String) {
     Year("Year"),
 }
 
+private enum class FastTrendMetric(val label: String) {
+    Total("Total"),
+    Average("Avg"),
+}
+
 private data class FastTrendBucket(
     val label: String,
     val hours: Double,
-    val goalMet: Boolean,
 )
 
 private data class WeightGraphPoint(
@@ -2966,7 +3006,7 @@ private data class WeightGraphPoint(
     val weightKg: Double,
 )
 
-private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+private val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 private val friendlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a")
 private val timerPanelDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d")
 private val timerPanelTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -3061,7 +3101,7 @@ private fun consolidatedWeightPoints(weights: List<WeightEntry>, period: TrendPe
         .sortedBy { it.epochMillis }
 }
 
-private fun fastTrendBuckets(sessions: List<FastSession>, period: TrendPeriod, zone: ZoneId = ZoneId.systemDefault()): List<FastTrendBucket> {
+private fun fastTrendBuckets(sessions: List<FastSession>, period: TrendPeriod, metric: FastTrendMetric = FastTrendMetric.Total, zone: ZoneId = ZoneId.systemDefault()): List<FastTrendBucket> {
     val completed = sessions.filter { it.endEpochMillis != null }
     return when (period) {
         TrendPeriod.Week -> {
@@ -3074,7 +3114,6 @@ private fun fastTrendBuckets(sessions: List<FastSession>, period: TrendPeriod, z
                 FastTrendBucket(
                     label = day.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() },
                     hours = bucketSessions.totalFastHours(),
-                    goalMet = bucketSessions.anyTargetMet(),
                 )
             }
         }
@@ -3090,8 +3129,7 @@ private fun fastTrendBuckets(sessions: List<FastSession>, period: TrendPeriod, z
                 }
                 FastTrendBucket(
                     label = start.format(shortDateFormatter),
-                    hours = bucketSessions.totalFastHours(),
-                    goalMet = bucketSessions.anyTargetMet(),
+                    hours = bucketSessions.bucketHours(metric),
                 )
             }
         }
@@ -3104,8 +3142,7 @@ private fun fastTrendBuckets(sessions: List<FastSession>, period: TrendPeriod, z
                 }
                 FastTrendBucket(
                     label = if (index in setOf(0, 3, 6, 9, 11)) month.format(monthFormatter) else "",
-                    hours = bucketSessions.totalFastHours(),
-                    goalMet = bucketSessions.anyTargetMet(),
+                    hours = bucketSessions.bucketHours(metric),
                 )
             }
         }
@@ -3116,8 +3153,22 @@ private fun List<FastSession>.totalFastHours(): Double {
     return sumOf { session -> session.durationMillis(session.endEpochMillis ?: session.startEpochMillis).toDouble() / 3_600_000.0 }
 }
 
-private fun List<FastSession>.anyTargetMet(): Boolean {
-    return any { session -> session.durationMillis(session.endEpochMillis ?: session.startEpochMillis) / 1_000L >= session.targetSeconds }
+/** Mean length of each fast in the bucket, so weeks/months are comparable regardless of log count. */
+private fun List<FastSession>.averageFastHours(): Double {
+    if (isEmpty()) return 0.0
+    return map { session -> session.durationMillis(session.endEpochMillis ?: session.startEpochMillis).toDouble() / 3_600_000.0 }.average()
+}
+
+/** Bar height for a bucket: summed hours or mean fast length, per the user's toggle. */
+private fun List<FastSession>.bucketHours(metric: FastTrendMetric): Double = when (metric) {
+    FastTrendMetric.Total -> totalFastHours()
+    FastTrendMetric.Average -> averageFastHours()
+}
+
+/** Truncate to the minute so picked/default times never carry seconds (and never land in the future). */
+private fun Long.floorToMinute(): Long {
+    val minuteMillis = 60_000L
+    return this / minuteMillis * minuteMillis
 }
 
 private fun formatDateTime(epochMillis: Long): String {
@@ -3236,7 +3287,7 @@ private data class AppPalette(
     val gridLine: Color,
     val switchTrackOff: Color,
     val error: Color,
-    val streakEmpty: Color,
+    val streakEmptyBorder: Color,
     val streakShort: Color,
     val streakNear: Color,
     val streakMet: Color,
@@ -3268,9 +3319,10 @@ private val LightPalette = AppPalette(
     gridLine = Color(0xFFE9DDD7),
     switchTrackOff = Color(0xFFE8E2DC),
     error = Color(0xFFB3261E),
-    // Streak calendar ramp: intensity grows as the purple darkens.
-    streakEmpty = Color(0xFFEDE8E1),
-    streakShort = Color(0xFFC4C0F8),
+    // Streak calendar ramp: intensity grows as the purple darkens; days without a
+    // fast are outlined rather than filled.
+    streakEmptyBorder = Color(0xFFE3DCD4),
+    streakShort = Color(0xFFA9A4F5),
     streakNear = Color(0xFF6D68F2),
     streakMet = Color(0xFF3230B8),
 )
@@ -3301,11 +3353,13 @@ private val DarkPalette = AppPalette(
     gridLine = Color(0xFF2C333F),
     switchTrackOff = Color(0xFF39414F),
     error = Color(0xFFFFB4AB),
-    // Streak calendar ramp: intensity grows as the purple brightens on dark.
-    streakEmpty = Color(0xFF242A35),
-    streakShort = Color(0xFF4644A6),
-    streakNear = Color(0xFF6E6AF0),
-    streakMet = Color(0xFF9A96FF),
+    // Streak calendar ramp: the same three shades as the light theme, so intensity
+    // always reads as a deeper purple (lighter = less, darker = more) and the mental
+    // model does not flip between themes. Days without a fast are outlined instead.
+    streakEmptyBorder = Color(0xFF333B49),
+    streakShort = Color(0xFFA9A4F5),
+    streakNear = Color(0xFF6D68F2),
+    streakMet = Color(0xFF3230B8),
 )
 
 private val LocalAppPalette = compositionLocalOf { LightPalette }
@@ -3337,7 +3391,7 @@ private val GraphSurface: Color @Composable get() = LocalAppPalette.current.grap
 private val GridLine: Color @Composable get() = LocalAppPalette.current.gridLine
 private val SwitchTrackOff: Color @Composable get() = LocalAppPalette.current.switchTrackOff
 private val ErrorRed: Color @Composable get() = LocalAppPalette.current.error
-private val StreakEmpty: Color @Composable get() = LocalAppPalette.current.streakEmpty
+private val StreakEmptyBorder: Color @Composable get() = LocalAppPalette.current.streakEmptyBorder
 private val StreakShort: Color @Composable get() = LocalAppPalette.current.streakShort
 private val StreakNear: Color @Composable get() = LocalAppPalette.current.streakNear
 private val StreakMet: Color @Composable get() = LocalAppPalette.current.streakMet
