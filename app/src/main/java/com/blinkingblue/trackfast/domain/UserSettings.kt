@@ -13,6 +13,8 @@ data class UserSettings(
     val milestoneAlertsEnabled: Boolean = true,
     val milestonePercents: Set<Int> = MILESTONE_OPTIONS.toSet(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Material You: tint the app with a scheme extracted from the wallpaper (Android 12+). */
+    val dynamicColorEnabled: Boolean = false,
     val autoBackupEnabled: Boolean = false,
     val autoBackupRetentionDays: Int = AutoBackup.DEFAULT_RETENTION_DAYS,
     /** SAF tree the daily backup is written to; device-specific, so never included in backups. */

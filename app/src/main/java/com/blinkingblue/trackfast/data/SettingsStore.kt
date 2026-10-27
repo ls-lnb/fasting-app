@@ -43,6 +43,7 @@ class SettingsStore(private val context: Context) {
                 ?.toSet()
                 ?: UserSettings.MILESTONE_OPTIONS.toSet(),
             themeMode = ThemeMode.fromStorage(preferences[Keys.THEME_MODE]),
+            dynamicColorEnabled = preferences[Keys.DYNAMIC_COLOR_ENABLED] ?: false,
             autoBackupEnabled = preferences[Keys.AUTO_BACKUP_ENABLED] ?: false,
             autoBackupRetentionDays = AutoBackup.coerceRetentionDays(
                 preferences[Keys.AUTO_BACKUP_RETENTION_DAYS] ?: AutoBackup.DEFAULT_RETENTION_DAYS,
@@ -102,6 +103,12 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.trackFastSettings.edit {
+            it[Keys.DYNAMIC_COLOR_ENABLED] = enabled
+        }
+    }
+
     suspend fun setAutoBackup(enabled: Boolean, treeUri: String?, folderName: String?, retentionDays: Int) {
         context.trackFastSettings.edit {
             it[Keys.AUTO_BACKUP_ENABLED] = enabled
@@ -153,6 +160,7 @@ class SettingsStore(private val context: Context) {
                 .sorted()
                 .joinToString(",")
             it[Keys.THEME_MODE] = settings.themeMode.storageValue
+            it[Keys.DYNAMIC_COLOR_ENABLED] = settings.dynamicColorEnabled
             it[Keys.AUTO_BACKUP_ENABLED] = settings.autoBackupEnabled
             it[Keys.AUTO_BACKUP_RETENTION_DAYS] = AutoBackup.coerceRetentionDays(settings.autoBackupRetentionDays)
             if (settings.targetWeightKg == null) {
@@ -180,6 +188,7 @@ class SettingsStore(private val context: Context) {
         val MILESTONE_ALERTS_ENABLED = booleanPreferencesKey("milestone_alerts_enabled")
         val MILESTONE_PERCENTS = stringPreferencesKey("milestone_percents")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         val AUTO_BACKUP_RETENTION_DAYS = intPreferencesKey("auto_backup_retention_days")
         val AUTO_BACKUP_TREE_URI = stringPreferencesKey("auto_backup_tree_uri")

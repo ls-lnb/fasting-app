@@ -58,10 +58,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -179,7 +182,7 @@ fun TrackFast(viewModel: TrackFastViewModel) {
         }
     }
 
-    TrackFastTheme(themeMode = uiState.settings.themeMode) {
+    TrackFastTheme(themeMode = uiState.settings.themeMode, dynamicColor = uiState.settings.dynamicColorEnabled) {
         Scaffold(
             containerColor = Cream,
             bottomBar = {
@@ -2420,6 +2423,38 @@ private fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
             )
+            val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        "Material You colors",
+                        color = if (dynamicColorAvailable) Ink else Muted,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        if (dynamicColorAvailable) {
+                            "Tint the app with the colors from your wallpaper."
+                        } else {
+                            "Needs Android 12 or newer."
+                        },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = uiState.settings.dynamicColorEnabled && dynamicColorAvailable,
+                    enabled = dynamicColorAvailable,
+                    onCheckedChange = { viewModel.setDynamicColor(it) },
+                    colors = settingsSwitchColors(),
+                )
+            }
         }
         SettingsCompactCard(title = "Weight") {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2880,66 +2915,24 @@ private fun EmptyState(text: String) {
 }
 
 @Composable
-private fun TrackFastTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
+private fun TrackFastTheme(themeMode: ThemeMode, dynamicColor: Boolean, content: @Composable () -> Unit) {
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
     }
-    val palette = if (darkTheme) DarkPalette else LightPalette
-    val colors = if (darkTheme) {
-        darkColorScheme(
-            primary = palette.brand,
-            onPrimary = Color.White,
-            primaryContainer = palette.brandTint,
-            onPrimaryContainer = Color(0xFFC6C4FF),
-            secondary = palette.brandSoft,
-            onSecondary = Color.White,
-            secondaryContainer = palette.brandTint,
-            onSecondaryContainer = Color(0xFFC6C4FF),
-            tertiary = BlueCard,
-            onTertiary = Color.White,
-            surface = palette.background,
-            surfaceContainer = palette.card,
-            surfaceVariant = palette.fieldSurface,
-            background = palette.background,
-            onBackground = palette.ink,
-            onSurface = palette.ink,
-            onSurfaceVariant = palette.slate,
-            outline = palette.border,
-            outlineVariant = palette.subtleBorder,
-            error = palette.error,
-            onError = Color(0xFF460605),
-        )
-    } else {
-        lightColorScheme(
-            primary = palette.brand,
-            onPrimary = Color.White,
-            primaryContainer = palette.brandTint,
-            onPrimaryContainer = palette.wine,
-            secondary = palette.brandSoft,
-            onSecondary = Color.White,
-            secondaryContainer = palette.brandTint,
-            onSecondaryContainer = palette.wine,
-            tertiary = BlueCard,
-            onTertiary = Color.White,
-            surface = palette.background,
-            surfaceContainer = palette.card,
-            surfaceVariant = palette.fieldSurface,
-            background = palette.background,
-            onBackground = palette.ink,
-            onSurface = palette.ink,
-            onSurfaceVariant = palette.slate,
-            outline = palette.border,
-            outlineVariant = palette.subtleBorder,
-            error = palette.error,
-            onError = Color.White,
-        )
+    val context = LocalContext.current
+    // Material You extracts a color scheme from the device wallpaper; API 31+ only.
+    val dynamicScheme = when {
+        !dynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> null
+        darkTheme -> dynamicDarkColorScheme(context)
+        else -> dynamicLightColorScheme(context)
     }
+    val palette = dynamicScheme?.toAppPalette() ?: if (darkTheme) DarkPalette else LightPalette
+    val colors = dynamicScheme ?: staticColorScheme(palette, darkTheme)
     // Keep system bars in step with the in-app theme. The platform ignores these
     // setters on API 35+ (enforced edge-to-edge); on older devices they mirror
     // the values/ and values-night/ styles regardless of the system setting.
-    val context = LocalContext.current
     SideEffect {
         val window = (context as? Activity)?.window
         if (window != null) {
@@ -2958,6 +2951,102 @@ private fun TrackFastTheme(themeMode: ThemeMode, content: @Composable () -> Unit
         MaterialTheme(colorScheme = colors, content = content)
     }
 }
+
+private fun staticColorScheme(palette: AppPalette, darkTheme: Boolean): ColorScheme = if (darkTheme) {
+    darkColorScheme(
+        primary = palette.brand,
+        onPrimary = Color.White,
+        primaryContainer = palette.brandTint,
+        onPrimaryContainer = Color(0xFFC6C4FF),
+        secondary = palette.brandSoft,
+        onSecondary = Color.White,
+        secondaryContainer = palette.brandTint,
+        onSecondaryContainer = Color(0xFFC6C4FF),
+        tertiary = BlueCard,
+        onTertiary = Color.White,
+        surface = palette.background,
+        surfaceContainer = palette.card,
+        surfaceVariant = palette.fieldSurface,
+        background = palette.background,
+        onBackground = palette.ink,
+        onSurface = palette.ink,
+        onSurfaceVariant = palette.slate,
+        outline = palette.border,
+        outlineVariant = palette.subtleBorder,
+        error = palette.error,
+        onError = Color(0xFF460605),
+    )
+} else {
+    lightColorScheme(
+        primary = palette.brand,
+        onPrimary = Color.White,
+        primaryContainer = palette.brandTint,
+        onPrimaryContainer = palette.wine,
+        secondary = palette.brandSoft,
+        onSecondary = Color.White,
+        secondaryContainer = palette.brandTint,
+        onSecondaryContainer = palette.wine,
+        tertiary = BlueCard,
+        onTertiary = Color.White,
+        surface = palette.background,
+        surfaceContainer = palette.card,
+        surfaceVariant = palette.fieldSurface,
+        background = palette.background,
+        onBackground = palette.ink,
+        onSurface = palette.ink,
+        onSurfaceVariant = palette.slate,
+        outline = palette.border,
+        outlineVariant = palette.subtleBorder,
+        error = palette.error,
+        onError = Color.White,
+    )
+}
+
+/**
+ * Material You scheme mapped onto the app's own color roles, so every screen,
+ * dialog, and chart picks up the wallpaper colors through [LocalAppPalette].
+ */
+private fun ColorScheme.toAppPalette() = AppPalette(
+    background = surface,
+    card = surfaceContainer,
+    ink = onSurface,
+    slate = onSurfaceVariant,
+    muted = onSurfaceVariant.copy(alpha = 0.65f),
+    brand = primary,
+    brandSoft = secondary,
+    brandTint = primaryContainer,
+    // Selected buttons and the "Add Fast" pill always carry white text, so they
+    // need a deep shade of the wallpaper color rather than the mid-tone primary.
+    wine = primary.darkened(),
+    dialogSurface = surfaceContainerHigh,
+    fieldSurface = surfaceVariant,
+    border = outline,
+    subtleBorder = outlineVariant,
+    mutedPink = onSurfaceVariant.copy(alpha = 0.5f),
+    statPillBorder = outlineVariant,
+    timerTrack = surfaceContainerHighest,
+    tintSurface = primaryContainer,
+    chipSurface = surfaceContainer,
+    optionSurface = surfaceContainerHigh,
+    subtleSurface = surfaceContainerLow,
+    barsChartSurface = surfaceContainerHighest,
+    graphSurface = surfaceContainerLow,
+    gridLine = outlineVariant,
+    switchTrackOff = surfaceContainerHighest,
+    error = error,
+    // Streak ramp follows the wallpaper's accent family: tertiary < secondary < primary.
+    streakEmptyBorder = outlineVariant,
+    streakShort = tertiary,
+    streakNear = secondary,
+    streakMet = primary,
+)
+
+/** Deep shade of a color, for surfaces that always carry white text. */
+private fun Color.darkened(factor: Float = 0.4f) = copy(
+    red = red * (1f - factor),
+    green = green * (1f - factor),
+    blue = blue * (1f - factor),
+)
 
 @Composable
 private fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
