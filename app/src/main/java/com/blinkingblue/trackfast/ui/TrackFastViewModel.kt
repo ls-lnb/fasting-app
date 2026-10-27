@@ -188,6 +188,12 @@ class TrackFastViewModel(
         }
     }
 
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsStore.setDynamicColor(enabled)
+        }
+    }
+
     fun setWeightUnit(unit: WeightUnit) {
         viewModelScope.launch {
             settingsStore.setWeightUnit(unit)

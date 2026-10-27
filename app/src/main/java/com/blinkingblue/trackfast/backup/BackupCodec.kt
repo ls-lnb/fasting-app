@@ -48,6 +48,7 @@ class BackupCodec(
                 milestoneAlertsEnabled = settings.milestoneAlertsEnabled,
                 milestonePercents = settings.milestonePercents.sorted(),
                 themeMode = settings.themeMode.storageValue,
+                dynamicColorEnabled = settings.dynamicColorEnabled,
                 autoBackupEnabled = settings.autoBackupEnabled,
                 autoBackupRetentionDays = AutoBackup.coerceRetentionDays(settings.autoBackupRetentionDays),
             ),
@@ -77,6 +78,7 @@ class BackupCodec(
                 .filter { it in UserSettings.MILESTONE_OPTIONS }
                 .toSet(),
             themeMode = ThemeMode.fromStorage(envelope.settings.themeMode),
+            dynamicColorEnabled = envelope.settings.dynamicColorEnabled,
             autoBackupEnabled = envelope.settings.autoBackupEnabled,
             autoBackupRetentionDays = AutoBackup.coerceRetentionDays(envelope.settings.autoBackupRetentionDays),
         )
@@ -167,6 +169,8 @@ data class SettingsBackup(
     val milestoneAlertsEnabled: Boolean = true,
     val milestonePercents: List<Int> = UserSettings.MILESTONE_OPTIONS,
     val themeMode: String = ThemeMode.SYSTEM.storageValue,
+    /** Absent in older backups, so default off. */
+    val dynamicColorEnabled: Boolean = false,
     val autoBackupEnabled: Boolean = false,
     val autoBackupRetentionDays: Int = AutoBackup.DEFAULT_RETENTION_DAYS,
 )
